@@ -21,8 +21,8 @@
 
 bin_PROGRAMS = xwininfo
 
-xwininfo_CFLAGS = $(DEP_CFLAGS)
-xwininfo_LDADD = $(DEP_LIBS)
+xwininfo_CFLAGS = $(XWININFO_CFLAGS)
+xwininfo_LDADD = $(XWININFO_LIBS)
 
 xwininfo_SOURCES =	\
         dsimple.c \
