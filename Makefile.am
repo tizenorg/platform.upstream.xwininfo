@@ -29,6 +29,6 @@ xwininfo_SOURCES =	\
         dsimple.h \
         xwininfo.c
 
-dist_man_MANS = \
+dist_man1_MANS = \
         xwininfo.man
 
