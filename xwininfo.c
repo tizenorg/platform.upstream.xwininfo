@@ -1,3 +1,4 @@
+/* $XdotOrg: $ */
 /* $Xorg: xwininfo.c,v 1.4 2001/02/09 02:06:04 xorgcvs Exp $ */
 /*
 
@@ -621,6 +622,8 @@ Display_Stats_Info(Window window)
   printf("  Corners:  +%d+%d  -%d+%d  -%d-%d  +%d-%d\n",
 	 rx, ry, xright, ry, xright, ybelow, rx, ybelow);
 
+  XFree(vinfo);
+
   /*
    * compute geometry string that would recreate window
    */
@@ -1108,4 +1111,6 @@ Display_WM_Info(Window window)
 	if (flags & StateHint)
 	  printf("      Initial state is %s\n",
 		 Lookup(wmhints->initial_state, _state_hints));
+
+	XFree(wmhints);
 }
