@@ -21,7 +21,7 @@
 
 bin_PROGRAMS = xwininfo
 
-xwininfo_CFLAGS = $(XWININFO_CFLAGS)
+AM_CFLAGS = $(XWININFO_CFLAGS)
 xwininfo_LDADD = $(XWININFO_LIBS)
 
 xwininfo_SOURCES =	\
