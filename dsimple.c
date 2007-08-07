@@ -64,9 +64,9 @@ int      screen = 0;
  * Get_Display_Name (argc, argv) Look for -display, -d, or host:dpy (obselete)
  * If found, remove it from command line.  Don't go past a lone -.
  */
-char *Get_Display_Name(pargc, argv)
-    int *pargc;  /* MODIFIED */
-    char **argv; /* MODIFIED */
+char *Get_Display_Name(
+    int *pargc,  /* MODIFIED */
+    char **argv) /* MODIFIED */
 {
     int argc = *pargc;
     char **pargv = argv+1;
@@ -101,8 +101,7 @@ char *Get_Display_Name(pargc, argv)
  * Open_Display: Routine to open a display with correct error handling.
  *               Does not require dpy or screen defined on entry.
  */
-Display *Open_Display(display_name)
-char *display_name;
+Display *Open_Display(char *display_name)
 {
 	Display *d;
 
@@ -125,9 +124,9 @@ char *display_name;
  *                           for this display is then stored in screen.
  *                           Does not require dpy or screen defined.
  */
-void Setup_Display_And_Screen(argc, argv)
-int *argc;      /* MODIFIED */
-char **argv;    /* MODIFIED */
+void Setup_Display_And_Screen(
+    int *argc,      /* MODIFIED */
+    char **argv)    /* MODIFIED */
 {
 	char *displayname = NULL;
         
@@ -171,9 +170,9 @@ void Close_Display(void)
  *                     all command line arguments, and other setup is done.
  *                     For examples of usage, see xwininfo, xwd, or xprop.
  */
-Window Select_Window_Args(rargc, argv)
-     int *rargc;
-     char **argv;
+Window Select_Window_Args(
+    int *rargc,
+    char **argv)
 #define ARGC (*rargc)
 {
 	int nargc=1;
@@ -234,8 +233,7 @@ Window Select_Window_Args(rargc, argv)
  * Routine to let user select a window using the mouse
  */
 
-Window Select_Window(dpy)
-     Display *dpy;
+Window Select_Window(Display *dpy)
 {
   int status;
   Cursor cursor;
@@ -285,10 +283,10 @@ Window Select_Window(dpy)
  *                   one found will be returned.  Only top and its subwindows
  *                   are looked at.  Normally, top should be the RootWindow.
  */
-Window Window_With_Name(dpy, top, name)
-     Display *dpy;
-     Window top;
-     char *name;
+Window Window_With_Name(
+    Display *dpy,
+    Window top,
+    char *name)
 {
 	Window *children, dummy;
 	unsigned int nchildren;
