@@ -45,6 +45,7 @@ of the copyright holder.
  *		16-Jun-87
  */
 
+#include "config.h"
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
@@ -66,7 +67,7 @@ typedef struct {
 } binding;
 
 void scale_init(void);
-char *nscale(int, int, int, char *);
+char *nscale(int, int, int, char *, size_t);
 char *xscale(int);
 char *yscale(int);
 char *bscale(int);
@@ -87,6 +88,23 @@ void Display_Window_Shape(Window);
 void Display_WM_Info(Window);
 
 static char *window_id_format = "0x%lx";
+
+#ifndef HAVE_STRLCAT
+static size_t strlcat(char *dst, const char *src, size_t dstsize)
+{
+    size_t sd = strlen(dst);
+    size_t ss = strlen(src);
+    size_t s = sd + ss;
+    
+    if (s < dstsize) {
+	strcpy(dst + sd, src);
+    } else {
+	strncpy(dst + sd, src, dstsize-sd-1);
+	dst[dstsize] = '\0';
+    }
+    return s;
+}
+#endif
 
 /*
  * Report the syntax for calling xwininfo:
@@ -172,56 +190,64 @@ scale_init(void)
 #define FOOT (12)
 
 char *
-nscale(int n, int np, int nmm, char *nbuf)
+nscale(int n, int np, int nmm, char *nbuf, size_t nbufsize)
 {
-  sprintf(nbuf, "%d", n);
-  if(metric||english) {
-    sprintf(nbuf+strlen(nbuf), " (");
-  }
-  if(metric) {
-    sprintf(nbuf+strlen(nbuf),"%.2f mm%s", ((double) n)*nmm/np, english?"; ":"");
-  }
-  if(english) {
-    double inch_frac;
-    Bool printed_anything = False;
-    int mi, yar, ft, inr;
+    int s;
+    snprintf(nbuf, nbufsize, "%d", n);
+    
+    if (metric||english) {
+	s = strlcat(nbuf, " (", nbufsize);
 
-    inch_frac = ((double) n)*(nmm/25.4)/np;
-    inr = (int)inch_frac;
-    inch_frac -= (double)inr;
-    if(inr>=MILE) {
-      mi = inr/MILE;
-      inr %= MILE;
-      sprintf(nbuf+strlen(nbuf), "%d %s(?!?)",
-	      mi, (mi==1)?"mile":"miles");
-      printed_anything = True;
+	if (metric) {
+	    snprintf(nbuf+s, nbufsize-s, "%.2f mm%s",
+		     ((double) n)*nmm/np, english ? "; " : "");
+	}
+	if (english) {
+	    double inch_frac;
+	    Bool printed_anything = False;
+	    int mi, yar, ft, inr;
+
+	    inch_frac = ((double) n)*(nmm/25.4)/np;
+	    inr = (int)inch_frac;
+	    inch_frac -= (double)inr;
+	    if (inr >= MILE) {
+		mi = inr/MILE;
+		inr %= MILE;
+		s = strlen(nbuf);
+		snprintf(nbuf+s, nbufsize-s, "%d %s(?!?)",
+			 mi, (mi==1) ? "mile" : "miles");
+		printed_anything = True;
+	    }
+	    if (inr >= YARD) {
+		yar = inr/YARD;
+		inr %= YARD;
+		if (printed_anything)
+		    strlcat(nbuf, ", ", nbufsize);
+		s = strlen(nbuf);
+		snprintf(nbuf+s, nbufsize-s, "%d %s",
+			yar, (yar==1) ? "yard" : "yards");
+		printed_anything = True;
+	    }
+	    if (inr >= FOOT) {
+		ft = inr/FOOT;
+		inr  %= FOOT;
+		if (printed_anything)
+		    strlcat(nbuf, ", ", nbufsize);
+		s = strlen(nbuf);
+		snprintf(nbuf+s, nbufsize-s, "%d %s",
+			ft, (ft==1) ? "foot" : "feet");
+		printed_anything = True;
+	    }
+	    if (!printed_anything || inch_frac != 0.0 || inr != 0) {
+		if (printed_anything)
+		    strlcat(nbuf, ", ", nbufsize);
+		s = strlen(nbuf);		
+		snprintf(nbuf+s, nbufsize-s, "%.2f inches", inr+inch_frac);
+	    }
+	}
+	strlcat (nbuf, ")", nbufsize);
     }
-    if(inr>=YARD) {
-      yar = inr/YARD;
-      inr %= YARD;
-      if (printed_anything)
-	  sprintf(nbuf+strlen(nbuf), ", ");
-      sprintf(nbuf+strlen(nbuf), "%d %s",
-	      yar, (yar==1)?"yard":"yards");
-      printed_anything = True;
-    }
-    if(inr>=FOOT) {
-      ft = inr/FOOT;
-      inr  %= FOOT;
-      if (printed_anything)
-	  sprintf(nbuf+strlen(nbuf), ", ");
-      sprintf(nbuf+strlen(nbuf), "%d %s",
-	      ft, (ft==1)?"foot":"feet");
-      printed_anything = True;
-    }
-    if (!printed_anything || inch_frac != 0.0 || inr != 0) {
-      if (printed_anything)
-	  sprintf(nbuf+strlen(nbuf), ", ");
-      sprintf(nbuf+strlen(nbuf), "%.2f inches", inr+inch_frac);
-    }
-  }
-  if (english || metric) strcat (nbuf, ")");
-  return(nbuf);
+    return(nbuf);
 }	  
   
 char xbuf[BUFSIZ];
@@ -231,7 +257,7 @@ xscale(int x)
   if(!xp) {
     scale_init();
   }
-  return(nscale(x, xp, xmm, xbuf));
+  return(nscale(x, xp, xmm, xbuf, sizeof(xbuf)));
 }
 
 char ybuf[BUFSIZ];
@@ -241,7 +267,7 @@ yscale(int y)
   if(!yp) {
     scale_init();
   }
-  return(nscale(y, yp, ymm, ybuf));
+  return(nscale(y, yp, ymm, ybuf, sizeof(ybuf)));
 }
 
 char bbuf[BUFSIZ];
@@ -251,7 +277,7 @@ bscale(int b)
   if(!bp) {
     scale_init();
   }
-  return(nscale(b, bp, bmm, bbuf));
+  return(nscale(b, bp, bmm, bbuf, sizeof(bbuf)));
 }
 
 /* end of pixel to inch, metric converter */
@@ -265,7 +291,7 @@ bad_window_handler(Display *disp, XErrorEvent *err)
 {
     char badid[20];
 
-    sprintf(badid, window_id_format, err->resourceid);
+    snprintf(badid, sizeof(badid), window_id_format, err->resourceid);
     Fatal_Error("No such window with id %s.", badid);
     exit (1);
     return 0;
@@ -427,7 +453,8 @@ LookupL(long code, binding *table)
 {
 	char *name;
 
-	sprintf(_lookup_buffer, "unknown (code = %ld. = 0x%lx)", code, code);
+	snprintf(_lookup_buffer, sizeof(_lookup_buffer),
+		 "unknown (code = %ld. = 0x%lx)", code, code);
 	name = _lookup_buffer;
 
 	while (table->name) {

@@ -31,6 +31,8 @@ AM_CONFIG_HEADER(config.h)
 AC_PROG_CC
 AC_PROG_INSTALL
 
+AC_CHECK_FUNCS([strlcat])
+
 # Checks for pkg-config packages
 PKG_CHECK_MODULES(XWININFO, xmuu xext x11)
 AC_SUBST(XWININFO_CFLAGS)
