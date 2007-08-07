@@ -63,29 +63,29 @@ of the copyright holder.
 
 typedef struct {
 	long code;
-	char *name;
+	const char *name;
 } binding;
 
-void scale_init(void);
-char *nscale(int, int, int, char *, size_t);
-char *xscale(int);
-char *yscale(int);
-char *bscale(int);
-int bad_window_handler(Display *, XErrorEvent *);
+static void scale_init(void);
+static char *nscale(int, int, int, char *, size_t);
+static char *xscale(int);
+static char *yscale(int);
+static char *bscale(int);
+static int bad_window_handler(Display *, XErrorEvent *);
 int main(int, char **);
-char *LookupL(long, binding *);
-char *Lookup(int, binding *);
-void Display_Window_Id(Window, int);
-void Display_Stats_Info(Window);
-void Display_Bits_Info(Window);
-void Display_Event_Mask(long);
-void Display_Events_Info(Window);
-void Display_Tree_Info(Window, int);
-void display_tree_info_1(Window, int, int);
-void Display_Hints(XSizeHints *);
-void Display_Size_Hints(Window);
-void Display_Window_Shape(Window);
-void Display_WM_Info(Window);
+static const char *LookupL(long, const binding *);
+static const char *Lookup(int, const binding *);
+static void Display_Window_Id(Window, int);
+static void Display_Stats_Info(Window);
+static void Display_Bits_Info(Window);
+static void Display_Event_Mask(long);
+static void Display_Events_Info(Window);
+static void Display_Tree_Info(Window, int);
+static void display_tree_info_1(Window, int, int);
+static void Display_Hints(XSizeHints *);
+static void Display_Size_Hints(Window);
+static void Display_Window_Shape(Window);
+static void Display_WM_Info(Window);
 
 static char *window_id_format = "0x%lx";
 
@@ -169,12 +169,12 @@ usage(void)
  */
 
 #define getdsp(var,fn) var = fn(dpy, DefaultScreen(dpy))
-int xp=0, xmm=0;
-int yp=0, ymm=0;
-int bp=0, bmm=0;
-int english = 0, metric = 0;
+static int xp=0, xmm=0;
+static int yp=0, ymm=0;
+static int bp=0, bmm=0;
+static int english = 0, metric = 0;
 
-void
+static void
 scale_init(void)
 {
   getdsp(yp,  DisplayHeight);
@@ -189,7 +189,7 @@ scale_init(void)
 #define YARD (3*12)
 #define FOOT (12)
 
-char *
+static char *
 nscale(int n, int np, int nmm, char *nbuf, size_t nbufsize)
 {
     int s;
@@ -250,8 +250,8 @@ nscale(int n, int np, int nmm, char *nbuf, size_t nbufsize)
     return(nbuf);
 }	  
   
-char xbuf[BUFSIZ];
-char *
+static char xbuf[BUFSIZ];
+static char *
 xscale(int x)
 {
   if(!xp) {
@@ -260,8 +260,8 @@ xscale(int x)
   return(nscale(x, xp, xmm, xbuf, sizeof(xbuf)));
 }
 
-char ybuf[BUFSIZ];
-char *
+static char ybuf[BUFSIZ];
+static char *
 yscale(int y)
 {
   if(!yp) {
@@ -270,8 +270,8 @@ yscale(int y)
   return(nscale(y, yp, ymm, ybuf, sizeof(ybuf)));
 }
 
-char bbuf[BUFSIZ];
-char *
+static char bbuf[BUFSIZ];
+static char *
 bscale(int b)
 {
   if(!bp) {
@@ -286,7 +286,7 @@ bscale(int b)
    to see if the -id the user specified is valid. */
 
 /* ARGSUSED */
-int
+static int
 bad_window_handler(Display *disp, XErrorEvent *err)
 {
     char badid[20];
@@ -448,10 +448,10 @@ main(int argc, char **argv)
  */
 static char _lookup_buffer[100];
 
-char *
-LookupL(long code, binding *table)
+static const char *
+LookupL(long code, const binding *table)
 {
-	char *name;
+	const char *name;
 
 	snprintf(_lookup_buffer, sizeof(_lookup_buffer),
 		 "unknown (code = %ld. = 0x%lx)", code, code);
@@ -468,8 +468,8 @@ LookupL(long code, binding *table)
 	return(name);
 }
 
-char *
-Lookup(int code, binding *table)
+static const char *
+Lookup(int code, const binding *table)
 {
     return LookupL((long)code, table);
 }
@@ -478,7 +478,7 @@ Lookup(int code, binding *table)
  * Routine to display a window id in dec/hex with name if window has one
  */
 
-void
+static void
 Display_Window_Id(Window window, Bool newline_wanted)
 {
 #ifdef NO_I18N
@@ -536,24 +536,24 @@ Display_Window_Id(Window window, Bool newline_wanted)
 /*
  * Display Stats on window
  */
-static binding _window_classes[] = {
+static const binding _window_classes[] = {
 	{ InputOutput, "InputOutput" },
 	{ InputOnly, "InputOnly" },
         { 0, 0 } };
 
-static binding _map_states[] = {
+static const binding _map_states[] = {
 	{ IsUnmapped, "IsUnMapped" },
 	{ IsUnviewable, "IsUnviewable" },
 	{ IsViewable, "IsViewable" },
 	{ 0, 0 } };
 
-static binding _backing_store_states[] = {
+static const binding _backing_store_states[] = {
 	{ NotUseful, "NotUseful" },
 	{ WhenMapped, "WhenMapped" },
 	{ Always, "Always" },
 	{ 0, 0 } };
 
-static binding _bit_gravity_states[] = {
+static const binding _bit_gravity_states[] = {
 	{ ForgetGravity, "ForgetGravity" },
 	{ NorthWestGravity, "NorthWestGravity" },
 	{ NorthGravity, "NorthGravity" },
@@ -567,7 +567,7 @@ static binding _bit_gravity_states[] = {
 	{ StaticGravity, "StaticGravity" },
 	{ 0, 0 }};
 
-static binding _window_gravity_states[] = {
+static const binding _window_gravity_states[] = {
 	{ UnmapGravity, "UnmapGravity" },
 	{ NorthWestGravity, "NorthWestGravity" },
 	{ NorthGravity, "NorthGravity" },
@@ -581,7 +581,7 @@ static binding _window_gravity_states[] = {
 	{ StaticGravity, "StaticGravity" },
 	{ 0, 0 }};
 
-static binding _visual_classes[] = {
+static const binding _visual_classes[] = {
 	{ StaticGray, "StaticGray" },
 	{ GrayScale, "GrayScale" },
 	{ StaticColor, "StaticColor" },
@@ -590,7 +590,7 @@ static binding _visual_classes[] = {
 	{ DirectColor, "DirectColor" },
 	{ 0, 0 }};
 
-void
+static void
 Display_Stats_Info(Window window)
 {
   XWindowAttributes win_attributes;
@@ -757,7 +757,7 @@ Display_Stats_Info(Window window)
 /*
  * Display bits info:
  */
-static binding _gravities[] = {
+static const binding _gravities[] = {
 	{ UnmapGravity, "UnMapGravity" },      /* WARNING: both of these have*/
 	{ ForgetGravity, "ForgetGravity" },    /* the same value - see code */
 	{ NorthWestGravity, "NorthWestGravity" },
@@ -772,18 +772,18 @@ static binding _gravities[] = {
 	{ StaticGravity, "StaticGravity" },
 	{ 0, 0 } };
 
-static binding _backing_store_hint[] = {
+static const binding _backing_store_hint[] = {
 	{ NotUseful, "NotUseful" },
 	{ WhenMapped, "WhenMapped" },
 	{ Always, "Always" },
 	{ 0, 0 } };
 
-static binding _bool[] = {
+static const binding _bool[] = {
 	{ 0, "No" },
 	{ 1, "Yes" },
 	{ 0, 0 } };
 
-void
+static void
 Display_Bits_Info(Window window)
 {
   XWindowAttributes win_attributes;
@@ -809,7 +809,7 @@ Display_Bits_Info(Window window)
 /*
  * Routine to display all events in an event mask
  */
-static binding _event_mask_names[] = {
+static const binding _event_mask_names[] = {
 	{ KeyPressMask, "KeyPress" },
 	{ KeyReleaseMask, "KeyRelease" },
 	{ ButtonPressMask, "ButtonPress" },
@@ -837,7 +837,7 @@ static binding _event_mask_names[] = {
 	{ OwnerGrabButtonMask, "OwnerGrabButton" },
 	{ 0, 0 } };
 
-void
+static void
 Display_Event_Mask(long mask)
 {
   long bit, bit_mask;
@@ -852,7 +852,7 @@ Display_Event_Mask(long mask)
 /*
  * Display info on events
  */
-void
+static void
 Display_Events_Info(Window window)
 {
   XWindowAttributes win_attributes;
@@ -881,7 +881,7 @@ Display_Events_Info(Window window)
  * Display root, parent, and (recursively) children information
  * recurse - true to show children information
  */
-void
+static void
 Display_Tree_Info(Window window, int recurse)
 {
     display_tree_info_1(window, recurse, 0);
@@ -890,7 +890,7 @@ Display_Tree_Info(Window window, int recurse)
 /*
  * level - recursion level
  */
-void
+static void
 display_tree_info_1(Window window, int recurse, int level)
 {
   int i, j;
@@ -962,7 +962,7 @@ display_tree_info_1(Window window, int recurse, int level)
 /*
  * Display a set of size hints
  */
-void
+static void
 Display_Hints(XSizeHints *hints)
 {
 	long flags;
@@ -1040,7 +1040,7 @@ Display_Hints(XSizeHints *hints)
 /*
  * Display Size Hints info
  */
-void
+static void
 Display_Size_Hints(Window window)
 {
 	XSizeHints *hints = XAllocSizeHints();
@@ -1066,7 +1066,7 @@ Display_Size_Hints(Window window)
 }
 
 
-void
+static void
 Display_Window_Shape (Window window)
 {
     Bool    ws, bs;
@@ -1098,7 +1098,7 @@ Display_Window_Shape (Window window)
 /*
  * Display Window Manager Info
  */
-static binding _state_hints[] = {
+static const binding _state_hints[] = {
 	{ DontCareState, "Don't Care State" },
 	{ NormalState, "Normal State" },
 	{ ZoomState, "Zoomed State" },
@@ -1106,7 +1106,7 @@ static binding _state_hints[] = {
 	{ InactiveState, "Inactive State" },
 	{ 0, 0 } };
 
-void
+static void
 Display_WM_Info(Window window)
 {
         XWMHints *wmhints;
