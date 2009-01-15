@@ -19,3 +19,6 @@ xwininfo
 xwininfo.1
 *.o
 *~
+xwininfo-*.tar.*
+ChangeLog
+tags

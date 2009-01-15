@@ -528,19 +528,19 @@ Display_Window_Id(Window window, Bool newline_wanted)
 static const binding _window_classes[] = {
 	{ InputOutput, "InputOutput" },
 	{ InputOnly, "InputOnly" },
-        { 0, 0 } };
+        { 0, NULL } };
 
 static const binding _map_states[] = {
 	{ IsUnmapped, "IsUnMapped" },
 	{ IsUnviewable, "IsUnviewable" },
 	{ IsViewable, "IsViewable" },
-	{ 0, 0 } };
+	{ 0, NULL } };
 
 static const binding _backing_store_states[] = {
 	{ NotUseful, "NotUseful" },
 	{ WhenMapped, "WhenMapped" },
 	{ Always, "Always" },
-	{ 0, 0 } };
+	{ 0, NULL } };
 
 static const binding _bit_gravity_states[] = {
 	{ ForgetGravity, "ForgetGravity" },
@@ -554,7 +554,7 @@ static const binding _bit_gravity_states[] = {
 	{ SouthGravity, "SouthGravity" },
 	{ SouthEastGravity, "SouthEastGravity" },
 	{ StaticGravity, "StaticGravity" },
-	{ 0, 0 }};
+	{ 0, NULL }};
 
 static const binding _window_gravity_states[] = {
 	{ UnmapGravity, "UnmapGravity" },
@@ -568,7 +568,7 @@ static const binding _window_gravity_states[] = {
 	{ SouthGravity, "SouthGravity" },
 	{ SouthEastGravity, "SouthEastGravity" },
 	{ StaticGravity, "StaticGravity" },
-	{ 0, 0 }};
+	{ 0, NULL }};
 
 static const binding _visual_classes[] = {
 	{ StaticGray, "StaticGray" },
@@ -577,7 +577,7 @@ static const binding _visual_classes[] = {
 	{ PseudoColor, "PseudoColor" },
 	{ TrueColor, "TrueColor" },
 	{ DirectColor, "DirectColor" },
-	{ 0, 0 }};
+	{ 0, NULL }};
 
 static void
 Display_Stats_Info(Window window)
@@ -759,18 +759,18 @@ static const binding _gravities[] = {
 	{ SouthGravity, "SouthGravity" },
 	{ SouthEastGravity, "SouthEastGravity" },
 	{ StaticGravity, "StaticGravity" },
-	{ 0, 0 } };
+	{ 0, NULL } };
 
 static const binding _backing_store_hint[] = {
 	{ NotUseful, "NotUseful" },
 	{ WhenMapped, "WhenMapped" },
 	{ Always, "Always" },
-	{ 0, 0 } };
+	{ 0, NULL } };
 
 static const binding _bool[] = {
 	{ 0, "No" },
 	{ 1, "Yes" },
-	{ 0, 0 } };
+	{ 0, NULL } };
 
 static void
 Display_Bits_Info(Window window)
@@ -824,7 +824,7 @@ static const binding _event_mask_names[] = {
 	{ PropertyChangeMask, "PropertyChange" },
 	{ ColormapChangeMask, "ColormapChange" },
 	{ OwnerGrabButtonMask, "OwnerGrabButton" },
-	{ 0, 0 } };
+	{ 0, NULL } };
 
 static void
 Display_Event_Mask(long mask)
@@ -1093,7 +1093,7 @@ static const binding _state_hints[] = {
 	{ ZoomState, "Zoomed State" },
 	{ IconicState, "Iconic State" },
 	{ InactiveState, "Inactive State" },
-	{ 0, 0 } };
+	{ 0, NULL } };
 
 static void
 Display_WM_Info(Window window)
