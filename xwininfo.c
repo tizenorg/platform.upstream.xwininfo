@@ -617,6 +617,7 @@ Display_Stats_Info(Window window)
   printf("  Width: %s\n", xscale(win_attributes.width));
   printf("  Height: %s\n", yscale(win_attributes.height));
   printf("  Depth: %d\n", win_attributes.depth);
+  printf("  Visual: 0x%lx\n", vinfo->visualid);
   printf("  Visual Class: %s\n", Lookup(vinfo->class, _visual_classes));
   printf("  Border width: %s\n", bscale(win_attributes.border_width));
   printf("  Class: %s\n",
