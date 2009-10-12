@@ -21,7 +21,7 @@
 
 bin_PROGRAMS = xwininfo
 
-AM_CFLAGS = $(XWININFO_CFLAGS)
+AM_CFLAGS = $(CWARNFLAGS) $(XWININFO_CFLAGS)
 xwininfo_LDADD = $(XWININFO_LIBS)
 
 xwininfo_SOURCES =	\
@@ -72,4 +72,4 @@ MAN_SUBSTS = \
 SUFFIXES = .$(APP_MAN_SUFFIX) .man
 
 .man.$(APP_MAN_SUFFIX):
-	sed $(MAN_SUBSTS) < $< > $@
+	$(AM_V_GEN)$(SED) $(MAN_SUBSTS) < $< > $@
