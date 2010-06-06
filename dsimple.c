@@ -63,7 +63,7 @@ int      screen = 0;
  * Get_Display_Name (argc, argv) Look for -display, -d, or host:dpy (obselete)
  * If found, remove it from command line.  Don't go past a lone -.
  */
-char *Get_Display_Name(
+char *Get_Display_Name (
     int *pargc,  /* MODIFIED */
     char **argv) /* MODIFIED */
 {
@@ -82,10 +82,10 @@ char *Get_Display_Name(
 	    *pargc -= 2;
 	    continue;
 	}
-	if (!strcmp(arg,"-")) {
-		while (i<argc)
-			*pargv++ = argv[i++];
-		break;
+	if (!strcmp (arg,"-")) {
+	    while (i<argc)
+		*pargv++ = argv[i++];
+	    break;
 	}
 	*pargv++ = arg;
     }
@@ -100,18 +100,18 @@ char *Get_Display_Name(
  * Open_Display: Routine to open a display with correct error handling.
  *               Does not require dpy or screen defined on entry.
  */
-Display *Open_Display(char *display_name)
+Display *Open_Display (char *display_name)
 {
 	Display *d;
 
-	d = XOpenDisplay(display_name);
+	d = XOpenDisplay (display_name);
 	if (d == NULL) {
 	    fprintf (stderr, "%s:  unable to open display '%s'\n",
 		     program_name, XDisplayName (display_name));
-	    exit(1);
+	    exit (1);
 	}
 
-	return(d);
+	return (d);
 }
 
 
@@ -122,26 +122,26 @@ Display *Open_Display(char *display_name)
  *                           for this display is then stored in screen.
  *                           Does not require dpy or screen defined.
  */
-void Setup_Display_And_Screen(
+void Setup_Display_And_Screen (
     int *argc,      /* MODIFIED */
     char **argv)    /* MODIFIED */
 {
-	char *displayname = NULL;
-        
-        displayname = Get_Display_Name(argc, argv);
-	dpy = Open_Display (displayname);
-	screen = XDefaultScreen(dpy);
+    char *displayname = NULL;
+
+    displayname = Get_Display_Name (argc, argv);
+    dpy = Open_Display (displayname);
+    screen = XDefaultScreen (dpy);
 }
 
 /*
  * Close_Display: Close display
  */
-void Close_Display(void)
+void Close_Display (void)
 {
     if (dpy == NULL)
       return;
-      
-    XCloseDisplay(dpy);
+
+    XCloseDisplay (dpy);
     dpy = NULL;
 }
 
@@ -168,56 +168,55 @@ void Close_Display(void)
  *                     all command line arguments, and other setup is done.
  *                     For examples of usage, see xwininfo, xwd, or xprop.
  */
-Window Select_Window_Args(
+Window Select_Window_Args (
     int *rargc,
     char **argv)
 #define ARGC (*rargc)
 {
-	int nargc=1;
-	int argc;
-	char **nargv;
-	Window w=0;
+    int nargc = 1;
+    int argc;
+    char **nargv;
+    Window w = 0;
 
-	nargv = argv+1; argc = ARGC;
+    nargv = argv+1; argc = ARGC;
 #define OPTION argv[0]
 #define NXTOPTP ++argv, --argc>0
 #define NXTOPT if (++argv, --argc==0) usage()
 #define COPYOPT nargv++[0]=OPTION, nargc++
 
-	while (NXTOPTP) {
-		if (!strcmp(OPTION, "-")) {
-			COPYOPT;
-			while (NXTOPTP)
-			  COPYOPT;
-			break;
-		}
-		if (!strcmp(OPTION, "-root")) {
-			w=RootWindow(dpy, screen);
-			continue;
-		}
-		if (!strcmp(OPTION, "-name")) {
-			NXTOPT;
-			w = Window_With_Name(dpy, RootWindow(dpy, screen),
-					     OPTION);
-			if (!w)
-			  Fatal_Error("No window with name %s exists!",OPTION);
-			continue;
-		}
-		if (!strcmp(OPTION, "-id")) {
-			NXTOPT;
-			w=0;
-			sscanf(OPTION, "0x%lx", &w);
-			if (!w)
-			  sscanf(OPTION, "%lu", &w);
-			if (!w)
-			  Fatal_Error("Invalid window id format: %s.", OPTION);
-			continue;
-		}
+    while (NXTOPTP) {
+	if (!strcmp (OPTION, "-")) {
+	    COPYOPT;
+	    while (NXTOPTP)
 		COPYOPT;
+	    break;
 	}
-	ARGC = nargc;
-	
-	return(w);
+	if (!strcmp (OPTION, "-root")) {
+	    w = RootWindow (dpy, screen);
+	    continue;
+	}
+	if (!strcmp (OPTION, "-name")) {
+	    NXTOPT;
+	    w = Window_With_Name (dpy, RootWindow (dpy, screen), OPTION);
+	    if (!w)
+		Fatal_Error ("No window with name %s exists!", OPTION);
+	    continue;
+	}
+	if (!strcmp (OPTION, "-id")) {
+	    NXTOPT;
+	    w = 0;
+	    sscanf (OPTION, "0x%lx", &w);
+	    if (!w)
+		sscanf (OPTION, "%lu", &w);
+	    if (!w)
+		Fatal_Error ("Invalid window id format: %s.", OPTION);
+	    continue;
+	}
+	COPYOPT;
+    }
+    ARGC = nargc;
+
+    return (w);
 }
 
 /*
@@ -231,51 +230,51 @@ Window Select_Window_Args(
  * Routine to let user select a window using the mouse
  */
 
-Window Select_Window(Display *dpy, int descend)
+Window Select_Window (Display *dpy, int descend)
 {
-  int status;
-  Cursor cursor;
-  XEvent event;
-  Window target_win = None, root = RootWindow(dpy,screen);
-  int buttons = 0;
+    int status;
+    Cursor cursor;
+    XEvent event;
+    Window target_win = None, root = RootWindow (dpy,screen);
+    int buttons = 0;
 
-  /* Make the target cursor */
-  cursor = XCreateFontCursor(dpy, XC_crosshair);
+    /* Make the target cursor */
+    cursor = XCreateFontCursor (dpy, XC_crosshair);
 
-  /* Grab the pointer using target cursor, letting it room all over */
-  status = XGrabPointer(dpy, root, False,
-			ButtonPressMask|ButtonReleaseMask, GrabModeSync,
-			GrabModeAsync, root, cursor, CurrentTime);
-  if (status != GrabSuccess) Fatal_Error("Can't grab the mouse.");
+    /* Grab the pointer using target cursor, letting it room all over */
+    status = XGrabPointer (dpy, root, False,
+			   ButtonPressMask|ButtonReleaseMask, GrabModeSync,
+			   GrabModeAsync, root, cursor, CurrentTime);
+    if (status != GrabSuccess) Fatal_Error ("Can't grab the mouse.");
 
-  /* Let the user select a window... */
-  while ((target_win == None) || (buttons != 0)) {
-    /* allow one more event */
-    XAllowEvents(dpy, SyncPointer, CurrentTime);
-    XWindowEvent(dpy, root, ButtonPressMask|ButtonReleaseMask, &event);
-    switch (event.type) {
-    case ButtonPress:
-      if (target_win == None) {
-	target_win = event.xbutton.subwindow; /* window selected */
-	if (target_win == None) target_win = root;
-      }
-      buttons++;
-      break;
-    case ButtonRelease:
-      if (buttons > 0) /* there may have been some down before we started */
-	buttons--;
-       break;
+    /* Let the user select a window... */
+    while ((target_win == None) || (buttons != 0)) {
+	/* allow one more event */
+	XAllowEvents (dpy, SyncPointer, CurrentTime);
+	XWindowEvent (dpy, root, ButtonPressMask|ButtonReleaseMask, &event);
+	switch (event.type) {
+	case ButtonPress:
+	    if (target_win == None) {
+		target_win = event.xbutton.subwindow; /* window selected */
+		if (target_win == None) target_win = root;
+	    }
+	    buttons++;
+	    break;
+	case ButtonRelease:
+	    if (buttons > 0) /* there may have been some down before we started */
+		buttons--;
+	    break;
+	}
     }
-  } 
 
-  XUngrabPointer(dpy, CurrentTime);      /* Done with pointer */
+    XUngrabPointer (dpy, CurrentTime);      /* Done with pointer */
 
-  if (!descend || (target_win == root))
-    return(target_win);
+    if (!descend || (target_win == root))
+	return (target_win);
 
-  target_win = Find_Client(dpy, root, target_win);
+    target_win = Find_Client (dpy, root, target_win);
 
-  return(target_win);
+    return (target_win);
 }
 
 
@@ -286,30 +285,30 @@ Window Select_Window(Display *dpy, int descend)
  *                   one found will be returned.  Only top and its subwindows
  *                   are looked at.  Normally, top should be the RootWindow.
  */
-Window Window_With_Name(
+Window Window_With_Name (
     Display *dpy,
     Window top,
     char *name)
 {
-	Window *children, dummy;
-	unsigned int nchildren;
-	int i;
-	Window w=0;
-	char *window_name;
+    Window *children, dummy;
+    unsigned int nchildren;
+    int i;
+    Window w=0;
+    char *window_name;
 
-	if (XFetchName(dpy, top, &window_name) && !strcmp(window_name, name))
-	  return(top);
+    if (XFetchName (dpy, top, &window_name) && !strcmp (window_name, name))
+	return (top);
 
-	if (!XQueryTree(dpy, top, &dummy, &dummy, &children, &nchildren))
-	  return(0);
+    if (!XQueryTree (dpy, top, &dummy, &dummy, &children, &nchildren))
+	return (0);
 
-	for (i=0; i<nchildren; i++) {
-		w = Window_With_Name(dpy, children[i], name);
-		if (w)
-		  break;
-	}
-	if (children) XFree ((char *)children);
-	return(w);
+    for (i = 0; i < nchildren; i++) {
+	w = Window_With_Name (dpy, children[i], name);
+	if (w)
+	    break;
+    }
+    if (children) XFree ((char *)children);
+    return (w);
 }
 
 
@@ -317,16 +316,16 @@ Window Window_With_Name(
  * Standard fatal error routine - call like printf
  * Does not require dpy or screen defined.
  */
-void Fatal_Error(char *msg, ...)
+void Fatal_Error (char *msg, ...)
 {
-	va_list args;
-	fflush(stdout);
-	fflush(stderr);
-	fprintf(stderr, "%s: error: ", program_name);
-	va_start(args, msg);
-	vfprintf(stderr, msg, args);
-	va_end(args);
-	fprintf(stderr, "\n");
-        Close_Display();
-	exit(EXIT_FAILURE);
+    va_list args;
+    fflush (stdout);
+    fflush (stderr);
+    fprintf (stderr, "%s: error: ", program_name);
+    va_start (args, msg);
+    vfprintf (stderr, msg, args);
+    va_end (args);
+    fprintf (stderr, "\n");
+    Close_Display ();
+    exit (EXIT_FAILURE);
 }
