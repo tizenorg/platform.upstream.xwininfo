@@ -133,47 +133,28 @@ void
 usage(void)
 {
     fprintf (stderr,
-	"usage:  %s [-options ...]\n\n", program_name);
-    fprintf (stderr,
-	"where options include:\n");
-    fprintf (stderr,
-	"    -help                print this message\n");
-    fprintf (stderr,
-	"    -display host:dpy    X server to contact\n");
-    fprintf (stderr,
-	"    -root                use the root window\n");
-    fprintf (stderr,
-	"    -id windowid         use the window with the specified id\n");
-    fprintf (stderr,
-	"    -name windowname     use the window with the specified name\n");
-    fprintf (stderr,
-	"    -int                 print window id in decimal\n");
-    fprintf (stderr,
-	"    -children            print parent and child identifiers\n");
-    fprintf (stderr,
-	"    -tree                print children identifiers recursively\n");
-    fprintf (stderr,
-	"    -stats               print window geometry [DEFAULT]\n");
-    fprintf (stderr,
-	"    -bits                print window pixel information\n");
-    fprintf (stderr,
-	"    -events              print events selected for on window\n");
-    fprintf (stderr,
-	"    -size                print size hints\n");
-    fprintf (stderr,
-	"    -wm                  print window manager hints\n");
-    fprintf (stderr,
-	"    -shape               print shape extents\n");
-    fprintf (stderr,
-	"    -frame               don't ignore window manager frames\n");
-    fprintf (stderr,
-	"    -english             print sizes in english units\n");
-    fprintf (stderr,
-	"    -metric              print sizes in metric units\n");
-    fprintf (stderr,
-	"    -all                 -tree, -stats, -bits, -events, -wm, -size, -shape\n");
-    fprintf (stderr,
-	"\n");
+	"usage:  %s [-options ...]\n\n"
+	"where options include:\n"
+	"    -help                print this message\n"
+	"    -display host:dpy    X server to contact\n"
+	"    -root                use the root window\n"
+	"    -id windowid         use the window with the specified id\n"
+	"    -name windowname     use the window with the specified name\n"
+	"    -int                 print window id in decimal\n"
+	"    -children            print parent and child identifiers\n"
+	"    -tree                print children identifiers recursively\n"
+	"    -stats               print window geometry [DEFAULT]\n"
+	"    -bits                print window pixel information\n"
+	"    -events              print events selected for on window\n"
+	"    -size                print size hints\n"
+	"    -wm                  print window manager hints\n"
+	"    -shape               print shape extents\n"
+	"    -frame               don't ignore window manager frames\n"
+	"    -english             print sizes in english units\n"
+	"    -metric              print sizes in metric units\n"
+	"    -all                 -tree, -stats, -bits, -events, -wm, -size, -shape\n"
+	"\n",
+	program_name);
     exit (1);
 }
 
@@ -404,11 +385,11 @@ main(int argc, char **argv)
 
   /* If no window selected on command line, let user pick one the hard way */
   if (!window) {
-	  printf("\n");
-	  printf("xwininfo: Please select the window about which you\n");
-	  printf("          would like information by clicking the\n");
-	  printf("          mouse in that window.\n");
-	  window = Select_Window(dpy, !frame);
+    printf("\n"
+	   "xwininfo: Please select the window about which you\n"
+	   "          would like information by clicking the\n"
+	   "          mouse in that window.\n");
+    window = Select_Window(dpy, !frame);
   }
 
   /*
