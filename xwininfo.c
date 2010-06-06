@@ -107,7 +107,7 @@ static void Display_Size_Hints(Window);
 static void Display_Window_Shape(Window);
 static void Display_WM_Info(Window);
 
-static char *window_id_format = "0x%lx";
+static const char *window_id_format = "0x%lx";
 
 #ifndef HAVE_STRLCAT
 static size_t strlcat(char *dst, const char *src, size_t dstsize)
