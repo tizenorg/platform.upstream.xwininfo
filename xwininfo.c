@@ -69,9 +69,7 @@ of the copyright holder.
 #include <X11/Xatom.h>
 #include <X11/Xos.h>
 #include <X11/extensions/shape.h>
-#ifndef NO_I18N
 #include <X11/Xlocale.h>
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -306,14 +304,8 @@ main(int argc, char **argv)
 
   INIT_NAME;
 
-#ifndef NO_I18N
-  {
-     char *lc;
-     lc = setlocale(LC_ALL, "");
-     if(!lc)
-        fprintf(stderr, "can not set locale properly\n");
-  }
-#endif
+  if (!setlocale(LC_ALL, ""))
+    fprintf(stderr, "%s: can not set locale properly\n", program_name);
 
   /* Open display, handle command line arguments */
   Setup_Display_And_Screen(&argc, argv);
@@ -469,11 +461,7 @@ Lookup(int code, const binding *table)
 static void
 Display_Window_Id(Window window, Bool newline_wanted)
 {
-#ifdef NO_I18N
-    char *win_name;
-#else
     XTextProperty tp;
-#endif
     
     printf(window_id_format, window);         /* print id # in hex/dec */
 
@@ -483,14 +471,6 @@ Display_Window_Id(Window window, Bool newline_wanted)
 	if (window == RootWindow(dpy, screen)) {
 	    printf(" (the root window)");
 	}
-#ifdef NO_I18N
-	if (!XFetchName(dpy, window, &win_name)) { /* Get window name if any */
-	    printf(" (has no name)");
-	} else if (win_name) {
-	    printf(" \"%s\"", win_name);
-	    XFree(win_name);
-	}
-#else
 	if (!XGetWMName(dpy, window, &tp)) { /* Get window name if any */
 	    printf(" (has no name)");
         } else if (tp.nitems > 0) {
@@ -509,7 +489,6 @@ Display_Window_Id(Window window, Bool newline_wanted)
             }
             printf("\"");
 	}
-#endif
 	else
 	    printf(" (has no name)");
     }
