@@ -37,6 +37,8 @@ from The Open Group.
  * Send bugs, etc. to chariot@athena.mit.edu.
  */
 
+#include <X11/Xfuncproto.h>
+
     /* Simple helper macros */
 #ifndef MAX
 #define MAX(a,b) (((a)>(b))?(a):(b))
@@ -76,8 +78,4 @@ void usage(void);
 
 Window Select_Window(Display *, int);
 Window Window_With_Name(Display *, Window, char *);
-#ifdef __GNUC__
-void Fatal_Error(char *, ...) __attribute__((__noreturn__));
-#else
-void Fatal_Error(char *, ...);
-#endif
+void Fatal_Error(char *, ...) _X_NORETURN _X_ATTRIBUTE_PRINTF(1, 2);
