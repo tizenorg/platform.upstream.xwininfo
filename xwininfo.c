@@ -431,11 +431,7 @@ static char _lookup_buffer[100];
 static const char *
 LookupL (long code, const binding *table)
 {
-    const char *name;
-
-    snprintf (_lookup_buffer, sizeof(_lookup_buffer),
-	      "unknown (code = %ld. = 0x%lx)", code, code);
-    name = _lookup_buffer;
+    const char *name = NULL;
 
     while (table->name) {
 	if (table->code == code) {
@@ -443,6 +439,12 @@ LookupL (long code, const binding *table)
 	    break;
 	}
 	table++;
+    }
+
+    if (name == NULL) {
+	snprintf (_lookup_buffer, sizeof(_lookup_buffer),
+		  "unknown (code = %ld. = 0x%lx)", code, code);
+	name = _lookup_buffer;
     }
 
     return (name);
