@@ -41,8 +41,10 @@ XORG_DEFAULT_OPTIONS
 AC_CHECK_FUNCS([strlcat])
 
 # Checks for pkg-config packages
-PKG_CHECK_MODULES(XWININFO, xext x11 [xproto >= 7.0.17])
-AC_SUBST(XWININFO_CFLAGS)
-AC_SUBST(XWININFO_LIBS)
+PKG_CHECK_MODULES(XWININFO, [xcb >= 1.6] xcb-icccm xcb-shape)
+# Even when using xcb, xproto is still required for Xfuncproto.h
+# and libX11 headers for cursorfont.h
+PKG_CHECK_MODULES(XLIB, x11 [xproto >= 7.0.17])
+XWININFO_CFLAGS="${XWININFO_CFLAGS} ${XLIB_CFLAGS}"
 
 AC_OUTPUT([Makefile])
