@@ -40,8 +40,23 @@ XORG_DEFAULT_OPTIONS
 
 AC_CHECK_FUNCS([strlcat])
 
+# Allow using xcb-icccm, but don't make it the default while the API is
+# still being changed.
+AC_MSG_CHECKING([whether to use xcb-icccm library])
+AC_ARG_WITH([xcb-icccm],
+	    [AS_HELP_STRING([--with-xcb-icccm],
+			    [use xcb-icccm (default: no)])],
+            [], [with_xcb_icccm=no])
+AC_MSG_RESULT([$with_xcb_icccm])
+if test "x$with_xcb_icccm" != xno ; then
+	AC_DEFINE([USE_XCB_ICCCM], 1,
+		  [Define to 1 to call xcb-icccm library functions instead of local replacements])
+	xcb_icccm_pc="xcb-icccm"
+fi
+
 # Checks for pkg-config packages
-PKG_CHECK_MODULES(XWININFO, [xcb >= 1.6] xcb-icccm xcb-shape)
+PKG_CHECK_MODULES(XWININFO, [xcb >= 1.6] xcb-shape ${xcb_icccm_pc})
+
 # Even when using xcb, xproto is still required for Xfuncproto.h
 # and libX11 headers for cursorfont.h
 PKG_CHECK_MODULES(XLIB, x11 [xproto >= 7.0.17])
