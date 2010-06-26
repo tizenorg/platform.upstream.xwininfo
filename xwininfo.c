@@ -67,7 +67,9 @@ of the copyright holder.
 
 #include <xcb/xcb.h>
 #include <xcb/xproto.h>
-#include <xcb/xcb_icccm.h>
+#ifdef USE_XCB_ICCCM
+# include <xcb/xcb_icccm.h>
+#endif
 #include <xcb/shape.h>
 
 #include <stdio.h>
@@ -82,6 +84,99 @@ typedef struct {
     long code;
     const char *name;
 } binding;
+
+#ifndef USE_XCB_ICCCM
+/* Once xcb-icccm's API is stable, this should be replaced by
+   xcb_size_hints_t & xcb_size_hints_flags_t */
+typedef struct {
+  /** User specified flags */
+  uint32_t flags;
+  /** User-specified position */
+  int32_t x, y;
+  /** User-specified size */
+  int32_t width, height;
+  /** Program-specified minimum size */
+  int32_t min_width, min_height;
+  /** Program-specified maximum size */
+  int32_t max_width, max_height;
+  /** Program-specified resize increments */
+  int32_t width_inc, height_inc;
+  /** Program-specified minimum aspect ratios */
+  int32_t min_aspect_num, min_aspect_den;
+  /** Program-specified maximum aspect ratios */
+  int32_t max_aspect_num, max_aspect_den;
+  /** Program-specified base size */
+  int32_t base_width, base_height;
+  /** Program-specified window gravity */
+  uint32_t win_gravity;
+} wm_size_hints_t;
+
+# define xcb_size_hints_t wm_size_hints_t
+
+typedef struct {
+  /** Marks which fields in this structure are defined */
+  int32_t flags;
+  /** Does this application rely on the window manager to get keyboard
+      input? */
+  uint32_t input;
+  /** See below */
+  int32_t initial_state;
+  /** Pixmap to be used as icon */
+  xcb_pixmap_t icon_pixmap;
+  /** Window to be used as icon */
+  xcb_window_t icon_window;
+  /** Initial position of icon */
+  int32_t icon_x, icon_y;
+  /** Icon mask bitmap */
+  xcb_pixmap_t icon_mask;
+  /* Identifier of related window group */
+  xcb_window_t window_group;
+} wm_hints_t;
+
+#define xcb_wm_hints_t wm_hints_t
+
+enum {
+  /* xcb_size_hints_flags_t */
+  XCB_SIZE_HINT_US_POSITION = 1 << 0,
+  XCB_SIZE_HINT_US_SIZE = 1 << 1,
+  XCB_SIZE_HINT_P_POSITION = 1 << 2,
+  XCB_SIZE_HINT_P_SIZE = 1 << 3,
+  XCB_SIZE_HINT_P_MIN_SIZE = 1 << 4,
+  XCB_SIZE_HINT_P_MAX_SIZE = 1 << 5,
+  XCB_SIZE_HINT_P_RESIZE_INC = 1 << 6,
+  XCB_SIZE_HINT_P_ASPECT = 1 << 7,
+  XCB_SIZE_HINT_BASE_SIZE = 1 << 8,
+  XCB_SIZE_HINT_P_WIN_GRAVITY = 1 << 9,
+  /* xcb_wm_state_t */
+  XCB_WM_STATE_WITHDRAWN = 0,
+  XCB_WM_STATE_NORMAL = 1,
+  XCB_WM_STATE_ICONIC = 3,
+  /* xcb_wm_t */
+  XCB_WM_HINT_INPUT = (1L << 0),
+  XCB_WM_HINT_STATE = (1L << 1),
+  XCB_WM_HINT_ICON_PIXMAP = (1L << 2),
+  XCB_WM_HINT_ICON_WINDOW = (1L << 3),
+  XCB_WM_HINT_ICON_POSITION = (1L << 4),
+  XCB_WM_HINT_ICON_MASK = (1L << 5),
+  XCB_WM_HINT_WINDOW_GROUP = (1L << 6),
+  XCB_WM_HINT_X_URGENCY = (1L << 8)
+};
+
+/* Once xcb-icccm's API is stable, these should be replaced by calls to it */
+# define GET_TEXT_PROPERTY(Dpy, Win, Atom) \
+    xcb_get_property (Dpy, False, Win, Atom, XCB_GET_PROPERTY_TYPE_ANY, 0, BUFSIZ)
+# define xcb_get_wm_name(Dpy, Win)	GET_TEXT_PROPERTY(Dpy, Win, XCB_ATOM_WM_NAME)
+
+# define xcb_get_wm_class(Dpy, Win) \
+    xcb_get_property (Dpy, False, Win, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 0, BUFSIZ)
+# define xcb_get_wm_hints(Dpy, Win) \
+    xcb_get_property(Dpy, False, Win, XCB_ATOM_WM_HINTS, XCB_ATOM_WM_HINTS, 0, 9)
+
+# define xcb_get_wm_size_hints(Dpy, Win, Atom) \
+    xcb_get_property (Dpy, False, Win, Atom, XCB_ATOM_WM_SIZE_HINTS, 0, 18)
+# define xcb_get_wm_normal_hints(Dpy, Win) \
+    xcb_get_wm_size_hints(Dpy, Win, XCB_ATOM_WM_NORMAL_HINTS)
+#endif
 
 /* Information we keep track of for each window to allow prefetching/reusing */
 struct wininfo {
@@ -505,6 +600,37 @@ fetch_win_attributes (struct wininfo *w)
     return w->win_attributes;
 }
 
+#ifndef USE_XCB_ICCCM
+static Bool
+wm_size_hints_reply (xcb_connection_t *dpy, xcb_get_property_cookie_t cookie,
+		     wm_size_hints_t *hints_return, xcb_generic_error_t **err)
+{
+    xcb_get_property_reply_t *prop = xcb_get_property_reply (dpy, cookie, err);
+    int length;
+
+    if (!prop || (prop->type != XCB_ATOM_WM_SIZE_HINTS) ||
+	(prop->format != 32)) {
+	free (prop);
+	return False;
+    }
+
+    memset (hints_return, 0, sizeof(wm_size_hints_t));
+
+    length = xcb_get_property_value_length(prop);
+    if (length > sizeof(wm_size_hints_t))
+	length = sizeof(wm_size_hints_t);
+    memcpy (hints_return, xcb_get_property_value (prop), length);
+
+    free (prop);
+    return True;
+}
+
+#define xcb_get_wm_normal_hints_reply wm_size_hints_reply
+#define xcb_get_wm_size_hints_reply wm_size_hints_reply
+#endif
+
+
+
 /* Ensure normal_hints field is filled in */
 static xcb_size_hints_t *
 fetch_normal_hints (struct wininfo *w, xcb_size_hints_t *hints_return)
@@ -567,8 +693,14 @@ Lookup (int code, const binding *table)
 static void
 Display_Window_Id (struct wininfo *w, Bool newline_wanted)
 {
+#ifdef USE_XCB_ICCCM
     xcb_get_text_property_reply_t prop;
+#else
+    xcb_get_property_reply_t *prop;
+#endif
     uint8_t got_reply;
+    const char *wm_name;
+    int wm_name_len;
 
     printf (window_id_format, w->window);      /* print id # in hex/dec */
 
@@ -579,18 +711,37 @@ Display_Window_Id (struct wininfo *w, Bool newline_wanted)
 	    printf (" (the root window)");
 	}
 	/* Get window name if any */
+#ifdef USE_XCB_ICCCM
 	got_reply = xcb_get_wm_name_reply (dpy, w->wm_name_cookie,
 					   &prop, NULL);
-	if (!got_reply || prop.name_len == 0) {
+	if (got_reply) {
+	    wm_name = prop.name;
+	    wm_name_len = prop.name_len;
+	}
+#else
+	prop = xcb_get_property_reply (dpy, w->wm_name_cookie, NULL);
+	if (prop && (prop->type == XCB_ATOM_STRING)) {
+	    wm_name = xcb_get_property_value (prop);
+            wm_name_len = xcb_get_property_value_length (prop);
+	    got_reply = True;
+	} else {
+	    got_reply = False;
+	}
+#endif
+	if (!got_reply || wm_name_len == 0) {
 	    printf (" (has no name)");
         } else {
             printf (" \"");
 	    /* XXX: need to handle encoding */
-	    printf ("%.*s", prop.name_len, prop.name);
+	    printf ("%.*s", wm_name_len, wm_name);
             printf ("\"");
 	}
+#ifdef USE_XCB_ICCCM
 	if (got_reply)
 	    xcb_get_text_property_reply_wipe (&prop);
+#else
+	free (prop);
+#endif
     }
 
     if (newline_wanted)
@@ -1060,7 +1211,14 @@ display_tree_info_1 (struct wininfo *w, int recurse, int level)
 
 	for (i = (int)num_children - 1; i >= 0; i--) {
 	    struct wininfo *cw = &children[i];
+	    Bool got_wm_class = False;
+	    char *instance_name = NULL, *class_name = NULL;
+	    int instance_name_len, class_name_len;
+#ifdef USE_XCB_ICCCM
 	    xcb_get_wm_class_reply_t classhint;
+#else
+	    xcb_get_property_reply_t *classprop;
+#endif
 	    xcb_get_geometry_reply_t *geometry;
 
 	    printf ("     ");
@@ -1068,19 +1226,54 @@ display_tree_info_1 (struct wininfo *w, int recurse, int level)
 	    Display_Window_Id (cw, False);
 	    printf (": (");
 
+#ifdef USE_XCB_ICCCM
 	    if (xcb_get_wm_class_reply (dpy, cw->wm_class_cookie,
 					&classhint, NULL)) {
-		if (classhint.instance_name)
-		    printf ("\"%s\" ", classhint.instance_name);
+		got_wm_class = True;
+		instance_name = classhint.instance_name;
+		class_name = classhint.class_name;
+		instance_name_len = strlen(instance_name);
+		class_name_len = strlen(class_name);
+	    }
+#else
+	    classprop = xcb_get_property_reply
+		(dpy, cw->wm_class_cookie, NULL);
+	    if (classprop) {
+		if (classprop->type == XCB_ATOM_STRING &&
+		    classprop->format == 8) {
+		    int proplen = xcb_get_property_value_length (classprop);
+
+		    instance_name = xcb_get_property_value (classprop);
+		    instance_name_len = strnlen (instance_name, proplen);
+		    if (instance_name_len < proplen) {
+			class_name = instance_name + instance_name_len + 1;
+			class_name_len = strnlen
+			    (class_name, proplen - (instance_name_len + 1));
+		    } else
+			class_name_len = 0;
+		    got_wm_class = True;
+		}
+		else
+		    free (classprop);
+	    }
+#endif
+
+	    if (got_wm_class) {
+		if (instance_name)
+		    printf ("\"%.*s\" ", instance_name_len, instance_name);
 		else
 		    printf ("(none) ");
 
-		if (classhint.class_name)
-		    printf ("\"%s\") ", classhint.class_name);
+		if (class_name)
+		    printf ("\"%.*s\") ",  class_name_len, class_name);
 		else
 		    printf ("(none)) ");
 
+#ifdef USE_XCB_ICCCM
 		xcb_get_wm_class_reply_wipe (&classhint);
+#else
+		free (classprop);
+#endif
 	    } else
 		printf (") ");
 
@@ -1290,6 +1483,33 @@ static const binding _state_hints[] = {
 /* xwininfo previously also reported the ZoomState & InactiveState,
    but ICCCM declared those obsolete long ago */
 	{ 0, NULL } };
+
+#ifndef USE_XCB_ICCCM
+static Bool
+wm_hints_reply (xcb_connection_t *dpy, xcb_get_property_cookie_t cookie,
+		wm_hints_t *hints_return, xcb_generic_error_t **err)
+{
+    xcb_get_property_reply_t *prop = xcb_get_property_reply (dpy, cookie, err);
+    int length;
+
+    if (!prop || (prop->type != XCB_ATOM_WM_HINTS) || (prop->format != 32)) {
+	free (prop);
+	return False;
+    }
+
+    memset (hints_return, 0, sizeof(wm_hints_t));
+
+    length = xcb_get_property_value_length(prop);
+    if (length > sizeof(wm_hints_t))
+	length = sizeof(wm_hints_t);
+    memcpy (hints_return, xcb_get_property_value (prop), length);
+
+    free (prop);
+    return True;
+}
+
+#define xcb_get_wm_hints_reply wm_hints_reply
+#endif
 
 static void
 Display_WM_Info (struct wininfo *w)

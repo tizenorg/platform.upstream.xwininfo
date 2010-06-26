@@ -48,9 +48,13 @@ from The Open Group.
 
 */
 
+#include "config.h"
+
 #include <xcb/xcb.h>
 #include <xcb/xproto.h>
-#include <xcb/xcb_icccm.h>
+#ifdef USE_XCB_ICCCM
+# include <xcb/xcb_icccm.h>
+#endif
 #include <X11/cursorfont.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -230,6 +234,12 @@ struct wininfo_cookies {
     xcb_query_tree_cookie_t query_tree;
 };
 
+#ifndef USE_XCB_ICCCM
+# define xcb_get_wm_name(Dpy, Win) \
+    xcb_get_property (Dpy, False, Win, XCB_ATOM_WM_NAME, \
+		      XCB_GET_PROPERTY_TYPE_ANY, 0, BUFSIZ)
+#endif
+
 static xcb_window_t
 recursive_Window_With_Name  (
     xcb_connection_t *dpy,
@@ -242,9 +252,11 @@ recursive_Window_With_Name  (
     int i;
     xcb_window_t w = 0;
     xcb_generic_error_t *err;
-    xcb_get_text_property_reply_t prop;
     xcb_query_tree_reply_t *tree;
     struct wininfo_cookies *child_cookies;
+
+#ifdef USE_XCB_ICCCM
+    xcb_get_text_property_reply_t prop;
 
     if (xcb_get_wm_name_reply (dpy, cookies->get_wm_name, &prop, &err)) {
 	/* can't use strcmp, since prop.name is not null terminated */
@@ -253,6 +265,22 @@ recursive_Window_With_Name  (
 	}
 
 	xcb_get_text_property_reply_wipe (&prop);
+#else
+    xcb_get_property_reply_t *prop
+	= xcb_get_property_reply (dpy, cookies->get_wm_name, &err);
+
+    if (prop) {
+	if (prop->type == XCB_ATOM_STRING) {
+	    const char *prop_name = xcb_get_property_value (prop);
+	    int prop_name_len = xcb_get_property_value_length (prop);
+
+	    /* can't use strcmp, since prop.name is not null terminated */
+	    if (strncmp (prop_name, name, prop_name_len) == 0) {
+		w = window;
+	    }
+	}
+	free (prop);
+#endif
 
 	if (w)
 	{
