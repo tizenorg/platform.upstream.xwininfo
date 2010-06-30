@@ -78,6 +78,7 @@ of the copyright holder.
 #include <locale.h>
 #include <langinfo.h>
 #include <iconv.h>
+#include <ctype.h>
 #include <errno.h>
 
 /* Include routines to handle parsing defaults */
@@ -183,6 +184,8 @@ enum {
 
 /* Possibly in xcb-emwh in the future? */
 static xcb_atom_t atom_net_wm_name, atom_utf8_string;
+static xcb_atom_t atom_net_wm_desktop, atom_net_wm_window_type,
+    atom_net_wm_state, atom_net_wm_pid, atom_net_frame_extents;
 static xcb_get_property_cookie_t get_net_wm_name (xcb_connection_t *,
 						  xcb_window_t);
 
@@ -200,6 +203,12 @@ struct wininfo {
     xcb_get_window_attributes_cookie_t	attr_cookie;
     xcb_get_property_cookie_t		normal_hints_cookie;
     xcb_get_property_cookie_t		hints_cookie;
+    xcb_get_property_cookie_t		wm_desktop_cookie;
+    xcb_get_property_cookie_t		wm_window_type_cookie;
+    xcb_get_property_cookie_t		wm_state_cookie;
+    xcb_get_property_cookie_t		wm_pid_cookie;
+    xcb_get_property_cookie_t		wm_client_machine_cookie;
+    xcb_get_property_cookie_t		frame_extents_cookie;
     xcb_get_property_cookie_t		zoom_cookie;
 
     /* cached results from previous requests */
@@ -234,6 +243,7 @@ static const char *window_id_format = "0x%lx";
 static const char *user_encoding;
 static iconv_t iconv_from_utf8;
 static void print_utf8 (const char *, char *, size_t, const char *);
+static void print_friendly_name (const char *, const char *, const char *);
 
 static xcb_connection_t *dpy;
 static xcb_screen_t *screen;
@@ -510,7 +520,13 @@ main (int argc, char **argv)
     /* preload atoms we may need later */
     Intern_Atom (dpy, "_NET_WM_NAME");
     Intern_Atom (dpy, "UTF8_STRING");
-
+    if (wm) {
+	Intern_Atom (dpy, "_NET_WM_DESKTOP");
+	Intern_Atom (dpy, "_NET_WM_WINDOW_TYPE");
+	Intern_Atom (dpy, "_NET_WM_STATE");
+	Intern_Atom (dpy, "_NET_WM_PID");
+	Intern_Atom (dpy, "_NET_FRAME_EXTENTS");
+    }
     /* initialize scaling data */
     scale_init(screen);
 
@@ -575,8 +591,46 @@ main (int argc, char **argv)
 	w->attr_cookie = xcb_get_window_attributes (dpy, window);
     if (stats || size)
 	w->normal_hints_cookie = xcb_get_wm_normal_hints (dpy, window);
-    if (wm)
+    if (wm) {
 	w->hints_cookie = xcb_get_wm_hints(dpy, window);
+
+	atom_net_wm_desktop = Get_Atom (dpy, "_NET_WM_DESKTOP");
+	if (atom_net_wm_desktop) {
+	    w->wm_desktop_cookie = xcb_get_property
+		(dpy, False, window, atom_net_wm_desktop,
+		 XCB_ATOM_CARDINAL, 0, 4);
+	}
+
+	atom_net_wm_window_type	= Get_Atom (dpy, "_NET_WM_WINDOW_TYPE");
+	if (atom_net_wm_window_type) {
+	    w->wm_window_type_cookie = xcb_get_property
+		(dpy, False, window, atom_net_wm_window_type,
+		 XCB_ATOM_ATOM, 0, BUFSIZ);
+	}
+
+	atom_net_wm_state = Get_Atom (dpy, "_NET_WM_STATE");
+	if (atom_net_wm_state) {
+	    w->wm_state_cookie = xcb_get_property
+		(dpy, False, window, atom_net_wm_state,
+		 XCB_ATOM_ATOM, 0, BUFSIZ);
+	}
+
+	atom_net_wm_pid	= Get_Atom (dpy, "_NET_WM_PID");
+	if (atom_net_wm_pid) {
+	    w->wm_pid_cookie = xcb_get_property
+		(dpy, False, window, atom_net_wm_pid,
+		 XCB_ATOM_CARDINAL, 0, BUFSIZ);
+	    w->wm_client_machine_cookie =
+		GET_TEXT_PROPERTY(dpy, window, XCB_ATOM_WM_CLIENT_MACHINE);
+	}
+
+	atom_net_frame_extents = Get_Atom (dpy, "_NET_FRAME_EXTENTS");
+	if (atom_net_frame_extents) {
+	    w->frame_extents_cookie = xcb_get_property
+		(dpy, False, window, atom_net_frame_extents,
+		 XCB_ATOM_CARDINAL, 0, 4 * 4);
+	}
+    }
     if (size)
 	w->zoom_cookie = xcb_get_wm_size_hints (dpy, window,
 						XCB_ATOM_WM_ZOOM_HINTS);
@@ -1563,6 +1617,8 @@ Display_WM_Info (struct wininfo *w)
 {
     xcb_wm_hints_t wmhints;
     long flags;
+    xcb_get_property_reply_t *prop;
+    int i;
 
     printf ("\n");
     if (!xcb_get_wm_hints_reply(dpy, w->hints_cookie, &wmhints, &err))
@@ -1570,9 +1626,9 @@ Display_WM_Info (struct wininfo *w)
 	printf ("  No window manager hints defined\n");
 	if (err)
 	    Print_X_Error (dpy, err);
-	return;
-    }
-    flags = wmhints.flags;
+	flags = 0;
+    } else
+	flags = wmhints.flags;
 
     printf ("  Window manager hints:\n");
 
@@ -1597,6 +1653,101 @@ Display_WM_Info (struct wininfo *w)
     if (flags & XCB_WM_HINT_STATE)
 	printf ("      Initial state is %s\n",
 		Lookup (wmhints.initial_state, _state_hints));
+
+    if (atom_net_wm_desktop) {
+	prop = xcb_get_property_reply (dpy, w->wm_desktop_cookie, NULL);
+	if (prop && (prop->type != XCB_NONE)) {
+	    uint32_t *desktop = xcb_get_property_value (prop);
+	    if (*desktop == 0xFFFFFFFF) {
+		printf ("      Displayed on all desktops\n");
+	    } else {
+		printf ("      Displayed on desktop %d\n", *desktop);
+	    }
+	}
+	free (prop);
+    }
+
+    if (atom_net_wm_window_type) {
+	prop = xcb_get_property_reply (dpy, w->wm_window_type_cookie,
+				       NULL);
+	if (prop && (prop->type != XCB_NONE) && (prop->value_len > 0)) {
+	    xcb_atom_t *atoms = xcb_get_property_value (prop);
+	    int atom_count = prop->value_len;
+
+	    if (atom_count > 0) {
+		printf ("      Window type:\n");
+		for (i = 0; i < atom_count; i++) {
+		    const char *atom_name = Get_Atom_Name (dpy, atoms[i]);
+
+		    if (atom_name) {
+			print_friendly_name ("          %s\n", atom_name,
+					     "_NET_WM_WINDOW_TYPE_");
+		    } else {
+			printf ("          (unresolvable ATOM 0x%x)\n",
+				atoms[i]);
+		    }
+		}
+	    }
+	}
+	free (prop);
+    }
+
+    if (atom_net_wm_state) {
+	prop = xcb_get_property_reply (dpy, w->wm_state_cookie, NULL);
+	if (prop && (prop->type != XCB_NONE) && (prop->value_len > 0)) {
+	    xcb_atom_t *atoms = xcb_get_property_value (prop);
+	    int atom_count = prop->value_len;
+
+	    if (atom_count > 0) {
+		printf ("      Window state:\n");
+		for (i = 0; i < atom_count; i++) {
+		    const char *atom_name = Get_Atom_Name (dpy, atoms[i]);
+
+		    if (atom_name) {
+			print_friendly_name ("          %s\n", atom_name,
+					     "_NET_WM_STATE_");
+		    } else {
+			printf ("          (unresolvable ATOM 0x%x)\n",
+				atoms[i]);
+		    }
+		}
+	    }
+	}
+	free (prop);
+    }
+
+    if (atom_net_wm_pid) {
+	printf ("      Process id: ");
+	prop = xcb_get_property_reply (dpy, w->wm_pid_cookie, NULL);
+	if (prop && (prop->type == XCB_ATOM_CARDINAL)) {
+	    uint32_t *pid = xcb_get_property_value (prop);
+	    printf ("%d", *pid);
+	} else {
+	    printf ("(unknown)");
+	}
+	free (prop);
+
+	prop = xcb_get_property_reply (dpy, w->wm_client_machine_cookie, NULL);
+	if (prop && (prop->type == XCB_ATOM_STRING)) {
+	    const char *hostname = xcb_get_property_value (prop);
+	    int hostname_len = xcb_get_property_value_length (prop);
+	    printf (" on host %.*s", hostname_len, hostname);
+	}
+	printf ("\n");
+	free (prop);
+    }
+
+    if (atom_net_frame_extents) {
+	prop = xcb_get_property_reply (dpy, w->frame_extents_cookie, NULL);
+	if (prop && (prop->type == XCB_ATOM_CARDINAL)
+	    && (prop->value_len == 4)) {
+	    uint32_t *extents = xcb_get_property_value (prop);
+
+	    printf ("      Frame extents: %d, %d, %d, %d\n",
+		    extents[0], extents[1], extents[2], extents[3]);
+	}
+	free (prop);
+    }
 }
 
 /* Frees all members of a wininfo struct, but not the struct itself */
@@ -1675,4 +1826,42 @@ print_utf8 (const char *prefix, char *u8str, size_t length, const char *suffix)
 	printf (" (can't load iconv conversion for UTF8_STRING to %s)",
 		user_encoding);
     }
+}
+
+/*
+ * Takes a string such as an atom name, strips the prefix, converts
+ * underscores to spaces, lowercases all but the first letter of each word,
+ * and prints it.
+ */
+static void
+print_friendly_name (const char *format, const char *string,
+		     const char *prefix)
+{
+    const char *name_start = string;
+    char *lowered_name, *n;
+    int prefix_len = strlen (prefix);
+
+    if (strncmp (name_start, prefix, prefix_len) == 0) {
+	name_start += prefix_len;
+    }
+
+    lowered_name = strdup (name_start);
+    if (lowered_name) {
+	Bool first = True;
+
+	for (n = lowered_name ; *n != 0 ; n++) {
+	    if (*n == '_') {
+		*n = ' ';
+		first = True;
+	    } else if (first) {
+		first = False;
+	    } else {
+		*n = tolower(*n);
+	    }
+	}
+	name_start = lowered_name;
+    }
+
+    printf (format, name_start);
+    free (lowered_name);
 }
