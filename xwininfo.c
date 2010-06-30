@@ -76,6 +76,9 @@ of the copyright holder.
 #include <stdlib.h>
 #include <string.h>
 #include <locale.h>
+#include <langinfo.h>
+#include <iconv.h>
+#include <errno.h>
 
 /* Include routines to handle parsing defaults */
 #include "dsimple.h"
@@ -178,12 +181,18 @@ enum {
     xcb_get_wm_size_hints(Dpy, Win, XCB_ATOM_WM_NORMAL_HINTS)
 #endif
 
+/* Possibly in xcb-emwh in the future? */
+static xcb_atom_t atom_net_wm_name, atom_utf8_string;
+static xcb_get_property_cookie_t get_net_wm_name (xcb_connection_t *,
+						  xcb_window_t);
+
 /* Information we keep track of for each window to allow prefetching/reusing */
 struct wininfo {
     xcb_window_t			window;
 
     /* cookies for requests we've sent */
     xcb_get_geometry_cookie_t		geometry_cookie;
+    xcb_get_property_cookie_t		net_wm_name_cookie;
     xcb_get_property_cookie_t		wm_name_cookie;
     xcb_get_property_cookie_t		wm_class_cookie;
     xcb_translate_coordinates_cookie_t	trans_coords_cookie;
@@ -221,6 +230,10 @@ static void Display_WM_Info (struct wininfo *);
 static void wininfo_wipe (struct wininfo *);
 
 static const char *window_id_format = "0x%lx";
+
+static const char *user_encoding;
+static iconv_t iconv_from_utf8;
+static void print_utf8 (const char *, char *, size_t, const char *);
 
 static xcb_connection_t *dpy;
 static xcb_screen_t *screen;
@@ -407,6 +420,7 @@ main (int argc, char **argv)
 
     if (!setlocale (LC_ALL, ""))
 	fprintf (stderr, "%s: can not set locale properly\n", program_name);
+    user_encoding = nl_langinfo (CODESET);
 
     memset (w, 0, sizeof(struct wininfo));
 
@@ -493,6 +507,10 @@ main (int argc, char **argv)
 
     Setup_Display_And_Screen (display_name, &dpy, &screen);
 
+    /* preload atoms we may need later */
+    Intern_Atom (dpy, "_NET_WM_NAME");
+    Intern_Atom (dpy, "UTF8_STRING");
+
     /* initialize scaling data */
     scale_init(screen);
 
@@ -510,6 +528,8 @@ main (int argc, char **argv)
 		"xwininfo: Please select the window about which you\n"
 		"          would like information by clicking the\n"
 		"          mouse in that window.\n");
+	Intern_Atom (dpy, "_NET_VIRTUAL_ROOTS");
+	Intern_Atom (dpy, "WM_STATE");
 	window = Select_Window (dpy, screen, !frame);
     }
 
@@ -541,6 +561,7 @@ main (int argc, char **argv)
 
     /* Send requests to prefetch data we'll need */
     w->window = window;
+    w->net_wm_name_cookie = get_net_wm_name (dpy, window);
     w->wm_name_cookie = xcb_get_wm_name (dpy, window);
     if (children || tree)
 	w->tree_cookie = xcb_query_tree (dpy, window);
@@ -581,6 +602,9 @@ main (int argc, char **argv)
 
     wininfo_wipe (w);
     xcb_disconnect (dpy);
+    if (iconv_from_utf8 && (iconv_from_utf8 != (iconv_t) -1)) {
+	iconv_close (iconv_from_utf8);
+    }
     exit (0);
 }
 
@@ -694,13 +718,13 @@ static void
 Display_Window_Id (struct wininfo *w, Bool newline_wanted)
 {
 #ifdef USE_XCB_ICCCM
-    xcb_get_text_property_reply_t prop;
-#else
-    xcb_get_property_reply_t *prop;
+    xcb_get_text_property_reply_t wmn_reply;
 #endif
-    uint8_t got_reply;
-    const char *wm_name;
-    int wm_name_len;
+    xcb_get_property_reply_t *prop;
+    uint8_t got_reply = False;
+    const char *wm_name = NULL;
+    unsigned int wm_name_len = 0;
+    xcb_atom_t wm_name_encoding = XCB_NONE;
 
     printf (window_id_format, w->window);      /* print id # in hex/dec */
 
@@ -711,34 +735,54 @@ Display_Window_Id (struct wininfo *w, Bool newline_wanted)
 	    printf (" (the root window)");
 	}
 	/* Get window name if any */
-#ifdef USE_XCB_ICCCM
-	got_reply = xcb_get_wm_name_reply (dpy, w->wm_name_cookie,
-					   &prop, NULL);
-	if (got_reply) {
-	    wm_name = prop.name;
-	    wm_name_len = prop.name_len;
-	}
-#else
-	prop = xcb_get_property_reply (dpy, w->wm_name_cookie, NULL);
-	if (prop && (prop->type == XCB_ATOM_STRING)) {
+	prop = xcb_get_property_reply (dpy, w->net_wm_name_cookie, NULL);
+	if (prop && (prop->type != XCB_NONE)) {
 	    wm_name = xcb_get_property_value (prop);
-            wm_name_len = xcb_get_property_value_length (prop);
+	    wm_name_len = xcb_get_property_value_length (prop);
+	    wm_name_encoding = prop->type;
 	    got_reply = True;
-	} else {
-	    got_reply = False;
 	}
+
+	if (!got_reply) { /* No _NET_WM_NAME, check WM_NAME */
+#ifdef USE_XCB_ICCCM
+	    got_reply = xcb_get_wm_name_reply (dpy, w->wm_name_cookie,
+					       &wmn_reply, NULL);
+	    if (got_reply) {
+		wm_name = wmn_reply.name;
+		wm_name_len = wmn_reply.name_len;
+		wm_name_encoding = wmn_reply.encoding;
+	    }
+#else
+	    prop = xcb_get_property_reply (dpy, w->wm_name_cookie, NULL);
+	    if (prop && (prop->type != XCB_NONE)) {
+		wm_name = xcb_get_property_value (prop);
+		wm_name_len = xcb_get_property_value_length (prop);
+		wm_name_encoding = prop->type;
+		got_reply = True;
+	    }
 #endif
+	}
 	if (!got_reply || wm_name_len == 0) {
 	    printf (" (has no name)");
         } else {
-            printf (" \"");
-	    /* XXX: need to handle encoding */
-	    printf ("%.*s", wm_name_len, wm_name);
-            printf ("\"");
+	    if (wm_name_encoding == XCB_ATOM_STRING) {
+		printf (" \"%.*s\"", wm_name_len, wm_name);
+	    } else if (wm_name_encoding == atom_utf8_string) {
+		print_utf8 (" \"", (char *) wm_name, wm_name_len,  "\"");
+	    } else {
+		/* Encodings we don't support, including COMPOUND_TEXT */
+		const char *enc_name = Get_Atom_Name (dpy, wm_name_encoding);
+		if (enc_name) {
+		    printf (" (name in unsupported encoding %s)", enc_name);
+		} else {
+		    printf (" (name in unsupported encoding ATOM 0x%x)",
+			    wm_name_encoding);
+		}
+	    }
 	}
 #ifdef USE_XCB_ICCCM
 	if (got_reply)
-	    xcb_get_text_property_reply_wipe (&prop);
+	    xcb_get_text_property_reply_wipe (&wmn_reply);
 #else
 	free (prop);
 #endif
@@ -1166,8 +1210,10 @@ display_tree_info_1 (struct wininfo *w, int recurse, int level)
     if (level == 0) {
 	struct wininfo rw, pw;
 	rw.window = tree->root;
+	rw.net_wm_name_cookie = get_net_wm_name (dpy, rw.window);
 	rw.wm_name_cookie = xcb_get_wm_name (dpy, rw.window);
 	pw.window = tree->parent;
+	pw.net_wm_name_cookie = get_net_wm_name (dpy, pw.window);
 	pw.wm_name_cookie = xcb_get_wm_name (dpy, pw.window);
 	xcb_flush (dpy);
 
@@ -1199,6 +1245,7 @@ display_tree_info_1 (struct wininfo *w, int recurse, int level)
 	    struct wininfo *cw = &children[i];
 
 	    cw->window = child_list[i];
+	    cw->net_wm_name_cookie = get_net_wm_name (dpy, child_list[i]);
 	    cw->wm_name_cookie = xcb_get_wm_name (dpy, child_list[i]);
 	    cw->wm_class_cookie = xcb_get_wm_class (dpy, child_list[i]);
 	    cw->geometry_cookie = xcb_get_geometry (dpy, child_list[i]);
@@ -1536,6 +1583,7 @@ Display_WM_Info (struct wininfo *w)
     if (flags & XCB_WM_HINT_ICON_WINDOW) {
 	struct wininfo iw;
 	iw.window = wmhints.icon_window;
+	iw.net_wm_name_cookie = get_net_wm_name (dpy, iw.window);
 	iw.wm_name_cookie = xcb_get_wm_name (dpy, iw.window);
 
 	printf ("      Icon window id: ");
@@ -1558,4 +1606,73 @@ wininfo_wipe (struct wininfo *w)
     free (w->geometry);
     free (w->win_attributes);
     free (w->normal_hints);
+}
+
+/* Gets UTF-8 encoded EMWH property _NET_WM_NAME for a window */
+static xcb_get_property_cookie_t
+get_net_wm_name (xcb_connection_t *dpy, xcb_window_t win)
+{
+    if (!atom_net_wm_name)
+	atom_net_wm_name = Get_Atom (dpy, "_NET_WM_NAME");
+
+    if (!atom_utf8_string)
+	atom_utf8_string = Get_Atom (dpy, "UTF8_STRING");
+
+    if (atom_net_wm_name && atom_utf8_string)
+	return xcb_get_property (dpy, False, win, atom_net_wm_name,
+				 atom_utf8_string, 0, BUFSIZ);
+    else {
+	xcb_get_property_cookie_t dummy = { 0 };
+	return dummy;
+    }
+}
+
+/*
+ * Converts a UTF-8 encoded string to the current locale encoding,
+ * if possible, and prints it, with prefix before and suffix after.
+ * Length of the string is specified in bytes, or -1 for going until '\0'
+ */
+static void
+print_utf8 (const char *prefix, char *u8str, size_t length, const char *suffix)
+{
+    char convbuf[BUFSIZ];
+    char *inp = u8str;
+    size_t inlen = length;
+    int convres;
+
+    if (inlen < 0) {
+	inlen = strlen (inp);
+    }
+
+    if (!iconv_from_utf8) {
+	iconv_from_utf8 = iconv_open (user_encoding, "UTF-8");
+    }
+
+    if (iconv_from_utf8 != (iconv_t) -1) {
+	Bool done = True;
+
+	printf ("%s", prefix);
+	do {
+	    char *outp = convbuf;
+	    size_t outlen = sizeof(convbuf);
+
+	    convres = iconv (iconv_from_utf8, &inp, &inlen, &outp, &outlen);
+
+	    if ((convres == -1) && (errno == E2BIG)) {
+		done = False;
+		convres = 0;
+	    }
+
+	    if (convres == 0) {
+		fwrite (convbuf, 1, sizeof(convbuf) - outlen, stdout);
+	    } else {
+		printf (" (failure in conversion from UTF8_STRING to %s)",
+			user_encoding);
+	    }
+	} while (!done);
+	printf ("%s", suffix);
+    } else {
+	printf (" (can't load iconv conversion for UTF8_STRING to %s)",
+		user_encoding);
+    }
 }
