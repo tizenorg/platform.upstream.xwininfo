@@ -26,9 +26,9 @@
 #include <string.h>
 
 #include "clientwin.h"
+#include "dsimple.h"
 
 static xcb_atom_t atom_wm_state = XCB_ATOM_NONE;
-typedef enum { False = 0, True } Bool;
 
 /*
  * Check if window has given property
@@ -139,9 +139,7 @@ Find_Client_In_Children(xcb_connection_t * dpy, xcb_window_t win)
 static xcb_window_t *
 Find_Roots(xcb_connection_t * dpy, xcb_window_t root, unsigned int *num)
 {
-    xcb_atom_t atom = XCB_ATOM_NONE;
-    xcb_intern_atom_cookie_t atom_cookie;
-    xcb_intern_atom_reply_t *atom_reply;
+    xcb_atom_t atom_virtual_root;
 
     xcb_get_property_cookie_t prop_cookie;
     xcb_get_property_reply_t *prop_reply;
@@ -150,18 +148,12 @@ Find_Roots(xcb_connection_t * dpy, xcb_window_t root, unsigned int *num)
 
     *num = 0;
 
-    atom_cookie = xcb_intern_atom (dpy, False, strlen("_NET_VIRTUAL_ROOTS"),
-                                   "_NET_VIRTUAL_ROOTS");
-    atom_reply = xcb_intern_atom_reply (dpy, atom_cookie, NULL);
-    if (atom_reply) {
-        atom = atom_reply->atom;
-        free (atom_reply);
-    }
-    if (!atom)
+    atom_virtual_root = Get_Atom (dpy, "_NET_VIRTUAL_ROOTS");
+    if (atom_virtual_root == XCB_ATOM_NONE)
         return NULL;
 
-    prop_cookie = xcb_get_property (dpy, False, root, atom, XCB_ATOM_WINDOW,
-                                    0, 0x7fffffff);
+    prop_cookie = xcb_get_property (dpy, False, root, atom_virtual_root,
+                                    XCB_ATOM_WINDOW, 0, 0x7fffffff);
     prop_reply = xcb_get_property_reply (dpy, prop_cookie, NULL);
     if (!prop_reply)
         return NULL;
@@ -235,17 +227,8 @@ Find_Client(xcb_connection_t * dpy, xcb_window_t root, xcb_window_t subwin)
     free (roots);
 
     if (atom_wm_state == XCB_ATOM_NONE) {
-        xcb_intern_atom_cookie_t atom_cookie;
-        xcb_intern_atom_reply_t *atom_reply;
-
-        atom_cookie = xcb_intern_atom (dpy, False,
-                                       strlen("WM_STATE"), "WM_STATE");
-        atom_reply = xcb_intern_atom_reply (dpy, atom_cookie, NULL);
-        if (atom_reply) {
-            atom_wm_state = atom_reply->atom;
-            free (atom_reply);
-        }
-        if (!atom_wm_state)
+        atom_wm_state = Get_Atom(dpy, "WM_STATE");
+        if (atom_wm_state == XCB_ATOM_NONE)
             return subwin;
     }
 

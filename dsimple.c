@@ -230,6 +230,7 @@ xcb_window_t Select_Window(xcb_connection_t *dpy,
  */
 
 struct wininfo_cookies {
+    xcb_get_property_cookie_t get_net_wm_name;
     xcb_get_property_cookie_t get_wm_name;
     xcb_query_tree_cookie_t query_tree;
 };
@@ -239,6 +240,13 @@ struct wininfo_cookies {
     xcb_get_property (Dpy, False, Win, XCB_ATOM_WM_NAME, \
 		      XCB_GET_PROPERTY_TYPE_ANY, 0, BUFSIZ)
 #endif
+
+static xcb_atom_t atom_net_wm_name, atom_utf8_string;
+
+# define xcb_get_net_wm_name(Dpy, Win)			 \
+    xcb_get_property (Dpy, False, Win, atom_net_wm_name, \
+		      atom_utf8_string, 0, BUFSIZ)
+
 
 static xcb_window_t
 recursive_Window_With_Name  (
@@ -254,43 +262,71 @@ recursive_Window_With_Name  (
     xcb_generic_error_t *err;
     xcb_query_tree_reply_t *tree;
     struct wininfo_cookies *child_cookies;
+    xcb_get_property_reply_t *prop;
 
-#ifdef USE_XCB_ICCCM
-    xcb_get_text_property_reply_t prop;
+    if (cookies->get_net_wm_name.sequence) {
+	prop = xcb_get_property_reply (dpy, cookies->get_net_wm_name, &err);
 
-    if (xcb_get_wm_name_reply (dpy, cookies->get_wm_name, &prop, &err)) {
-	/* can't use strcmp, since prop.name is not null terminated */
-	if (strncmp (prop.name, name, prop.name_len) == 0) {
-	    w = window;
+	if (prop) {
+	    if (prop->type == atom_utf8_string) {
+		const char *prop_name = xcb_get_property_value (prop);
+		int prop_name_len = xcb_get_property_value_length (prop);
+
+		/* can't use strcmp, since prop.name is not null terminated */
+		if (strncmp (prop_name, name, prop_name_len) == 0) {
+		    w = window;
+		}
+	    }
+	    free (prop);
+	} else if (err) {
+	    if (err->response_type == 0)
+		Print_X_Error (dpy, err);
+	    return 0;
 	}
+    }
 
-	xcb_get_text_property_reply_wipe (&prop);
-#else
-    xcb_get_property_reply_t *prop
-	= xcb_get_property_reply (dpy, cookies->get_wm_name, &err);
+    if (w) {
+	xcb_discard_reply (dpy, cookies->get_wm_name.sequence);
+    } else {
+#ifdef USE_XCB_ICCCM
+	xcb_get_text_property_reply_t nameprop;
 
-    if (prop) {
-	if (prop->type == XCB_ATOM_STRING) {
-	    const char *prop_name = xcb_get_property_value (prop);
-	    int prop_name_len = xcb_get_property_value_length (prop);
-
-	    /* can't use strcmp, since prop.name is not null terminated */
-	    if (strncmp (prop_name, name, prop_name_len) == 0) {
+	if (xcb_get_wm_name_reply (dpy, cookies->get_wm_name,
+				   &nameprop, &err)) {
+	    /* can't use strcmp, since nameprop.name is not null terminated */
+	    if (strncmp (nameprop.name, name, nameprop.name_len) == 0) {
 		w = window;
 	    }
-	}
-	free (prop);
-#endif
 
-	if (w)
-	{
-	    xcb_discard_reply (dpy, cookies->query_tree.sequence);
-	    return w;
+	    xcb_get_text_property_reply_wipe (&nameprop);
 	}
-    } else if (err) {
-	if (err->response_type == 0)
-	    Print_X_Error (dpy, err);
-	return 0;
+#else
+	prop = xcb_get_property_reply (dpy, cookies->get_wm_name, &err);
+
+	if (prop) {
+	    if (prop->type == XCB_ATOM_STRING) {
+		const char *prop_name = xcb_get_property_value (prop);
+		int prop_name_len = xcb_get_property_value_length (prop);
+
+		/* can't use strcmp, since prop.name is not null terminated */
+		if (strncmp (prop_name, name, prop_name_len) == 0) {
+		    w = window;
+		}
+	    }
+	    free (prop);
+	}
+#endif
+	else if (err) {
+	    if (err->response_type == 0)
+		Print_X_Error (dpy, err);
+	    return 0;
+	}
+    }
+
+    if (w)
+    {
+	xcb_discard_reply (dpy, cookies->query_tree.sequence);
+	return w;
     }
 
     tree = xcb_query_tree_reply (dpy, cookies->query_tree, &err);
@@ -308,6 +344,9 @@ recursive_Window_With_Name  (
 	Fatal_Error("Failed to allocate memory in recursive_Window_With_Name");
 
     for (i = 0; i < nchildren; i++) {
+	if (atom_net_wm_name && atom_utf8_string)
+	    child_cookies[i].get_net_wm_name =
+		xcb_get_net_wm_name (dpy, children[i]);
 	child_cookies[i].get_wm_name = xcb_get_wm_name (dpy, children[i]);
 	child_cookies[i].query_tree = xcb_query_tree (dpy, children[i]);
     }
@@ -324,6 +363,9 @@ recursive_Window_With_Name  (
     {
 	/* clean up remaining replies */
 	for (/* keep previous i */; i < nchildren; i++) {
+	    if (child_cookies[i].get_net_wm_name.sequence)
+		xcb_discard_reply (dpy,
+				   child_cookies[i].get_net_wm_name.sequence);
 	    xcb_discard_reply (dpy, child_cookies[i].get_wm_name.sequence);
 	    xcb_discard_reply (dpy, child_cookies[i].query_tree.sequence);
 	}
@@ -342,8 +384,14 @@ Window_With_Name (
 {
     struct wininfo_cookies cookies;
 
+    atom_net_wm_name = Get_Atom (dpy, "_NET_WM_NAME");
+    atom_utf8_string = Get_Atom (dpy, "UTF8_STRING");
+
+    if (atom_net_wm_name && atom_utf8_string)
+	cookies.get_net_wm_name = xcb_get_net_wm_name (dpy, top);
     cookies.get_wm_name = xcb_get_wm_name (dpy, top);
     cookies.query_tree = xcb_query_tree (dpy, top);
+    xcb_flush (dpy);
     return recursive_Window_With_Name(dpy, top, &cookies, name);
 }
 
@@ -484,4 +532,100 @@ Print_X_Error (
     }
 
     fprintf (stderr, "  Request serial number: %d\n", err->full_sequence);
+}
+
+/*
+ * Cache for atom lookups in either direction
+ */
+struct atom_cache_entry {
+    xcb_atom_t atom;
+    const char *name;
+    xcb_intern_atom_cookie_t intern_atom;
+    struct atom_cache_entry *next;
+};
+
+static struct atom_cache_entry *atom_cache;
+
+/*
+ * Send a request to the server for an atom by name
+ * Does not create the atom if it is not already present
+ */
+struct atom_cache_entry *Intern_Atom (xcb_connection_t * dpy, const char *name)
+{
+    struct atom_cache_entry *a;
+
+    for (a = atom_cache ; a != NULL ; a = a->next) {
+	if (strcmp (a->name, name) == 0)
+	    return a; /* already requested or found */
+    }
+
+    a = calloc(1, sizeof(struct atom_cache_entry));
+    if (a != NULL) {
+	a->name = name;
+	a->intern_atom = xcb_intern_atom (dpy, False, strlen (name), (name));
+	a->next = atom_cache;
+	atom_cache = a;
+    }
+    return a;
+}
+
+/* Get an atom by name when it is needed. */
+xcb_atom_t Get_Atom (xcb_connection_t * dpy, const char *name)
+{
+    struct atom_cache_entry *a = Intern_Atom (dpy, name);
+
+    if (a == NULL)
+	return XCB_ATOM_NONE;
+
+    if (a->atom == XCB_ATOM_NONE) {
+	xcb_intern_atom_reply_t *reply;
+
+	reply = xcb_intern_atom_reply(dpy, a->intern_atom, NULL);
+	if (reply) {
+	    a->atom = reply->atom;
+	    free (reply);
+	} else {
+	    a->atom = -1;
+	}
+    }
+    if (a->atom == -1) /* internal error */
+	return XCB_ATOM_NONE;
+
+    return a->atom;
+}
+
+/* Get the name for an atom when it is needed. */
+const char *Get_Atom_Name (xcb_connection_t * dpy, xcb_atom_t atom)
+{
+    struct atom_cache_entry *a;
+
+    for (a = atom_cache ; a != NULL ; a = a->next) {
+	if (a->atom == atom)
+	    return a->name; /* already requested or found */
+    }
+
+    a = calloc(1, sizeof(struct atom_cache_entry));
+    if (a != NULL) {
+	xcb_get_atom_name_cookie_t cookie = xcb_get_atom_name (dpy, atom);
+	xcb_get_atom_name_reply_t *reply
+	    = xcb_get_atom_name_reply (dpy, cookie, NULL);
+
+	a->atom = atom;
+	if (reply) {
+	    int len = xcb_get_atom_name_name_length (reply);
+	    char *name = malloc(len + 1);
+	    if (name) {
+		memcpy (name, xcb_get_atom_name_name (reply), len);
+		name[len] = '\0';
+		a->name = name;
+	    }
+	    free (reply);
+	}
+
+	a->next = atom_cache;
+	atom_cache = a;
+
+	return a->name;
+    }
+    return NULL;
 }
