@@ -77,7 +77,9 @@ of the copyright holder.
 #include <string.h>
 #include <locale.h>
 #include <langinfo.h>
-#include <iconv.h>
+#ifdef HAVE_ICONV
+# include <iconv.h>
+#endif
 #include <ctype.h>
 #include <errno.h>
 
@@ -240,8 +242,10 @@ static void wininfo_wipe (struct wininfo *);
 
 static const char *window_id_format = "0x%lx";
 
-static const char *user_encoding;
+#ifdef HAVE_ICONV
 static iconv_t iconv_from_utf8;
+#endif
+static const char *user_encoding;
 static void print_utf8 (const char *, char *, size_t, const char *);
 static void print_friendly_name (const char *, const char *, const char *);
 
@@ -431,6 +435,8 @@ main (int argc, char **argv)
     if (!setlocale (LC_ALL, ""))
 	fprintf (stderr, "%s: can not set locale properly\n", program_name);
     user_encoding = nl_langinfo (CODESET);
+    if (user_encoding == NULL)
+	user_encoding = "unknown encoding";
 
     memset (w, 0, sizeof(struct wininfo));
 
@@ -656,9 +662,11 @@ main (int argc, char **argv)
 
     wininfo_wipe (w);
     xcb_disconnect (dpy);
+#ifdef HAVE_ICONV
     if (iconv_from_utf8 && (iconv_from_utf8 != (iconv_t) -1)) {
 	iconv_close (iconv_from_utf8);
     }
+#endif
     exit (0);
 }
 
@@ -1778,6 +1786,83 @@ get_net_wm_name (xcb_connection_t *dpy, xcb_window_t win)
     }
 }
 
+/* [Copied from code added by Yang Zhao to xprop/xprop.c]
+ *
+ * Validate a string as UTF-8 encoded according to RFC 3629
+ *
+ * Simply, a unicode code point (up to 21-bits long) is encoded as follows:
+ *
+ *    Char. number range  |        UTF-8 octet sequence
+ *       (hexadecimal)    |              (binary)
+ *    --------------------+---------------------------------------------
+ *    0000 0000-0000 007F | 0xxxxxxx
+ *    0000 0080-0000 07FF | 110xxxxx 10xxxxxx
+ *    0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
+ *    0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+ *
+ * Validation is done left-to-right, and an error condition, if any, refers to
+ * only the left-most problem in the string.
+ *
+ * Return values:
+ *   UTF8_VALID: Valid UTF-8 encoded string
+ *   UTF8_OVERLONG: Using more bytes than needed for a code point
+ *   UTF8_SHORT_TAIL: Not enough bytes in a multi-byte sequence
+ *   UTF8_LONG_TAIL: Too many bytes in a multi-byte sequence
+ *   UTF8_FORBIDDEN_VALUE: Forbidden prefix or code point outside 0x10FFFF
+ */
+#define UTF8_VALID 0
+#define UTF8_FORBIDDEN_VALUE 1
+#define UTF8_OVERLONG 2
+#define UTF8_SHORT_TAIL 3
+#define UTF8_LONG_TAIL 4
+static int
+is_valid_utf8 (const char *string, int len)
+{
+    unsigned long codepoint;
+    int rem, i;
+    unsigned char c;
+
+    rem = 0;
+    for (i = 0; i < len; i++) {
+	c = (unsigned char) string[i];
+
+	/* Order of type check:
+	 *   - Single byte code point
+	 *   - Non-starting byte of multi-byte sequence
+	 *   - Start of 2-byte sequence
+	 *   - Start of 3-byte sequence
+	 *   - Start of 4-byte sequence
+	 */
+	if (!(c & 0x80)) {
+	    if (rem > 0) return UTF8_SHORT_TAIL;
+	    rem = 0;
+	    codepoint = c;
+	} else if ((c & 0xC0) == 0x80) {
+	    if (rem == 0) return UTF8_LONG_TAIL;
+	    rem--;
+	    codepoint |= (c & 0x3F) << (rem * 6);
+	    if (codepoint == 0) return UTF8_OVERLONG;
+	} else if ((c & 0xE0) == 0xC0) {
+	    if (rem > 0) return UTF8_SHORT_TAIL;
+	    rem = 1;
+	    codepoint = (c & 0x1F) << 6;
+	    if (codepoint == 0) return UTF8_OVERLONG;
+	} else if ((c & 0xF0) == 0xE0) {
+	    if (rem > 0) return UTF8_SHORT_TAIL;
+	    rem = 2;
+	    codepoint = (c & 0x0F) << 12;
+	} else if ((c & 0xF8) == 0xF0) {
+	    if (rem > 0) return UTF8_SHORT_TAIL;
+	    rem = 3;
+	    codepoint = (c & 0x07) << 18;
+	    if (codepoint > 0x10FFFF) return UTF8_FORBIDDEN_VALUE;
+	} else
+	    return UTF8_FORBIDDEN_VALUE;
+    }
+
+    return UTF8_VALID;
+}
+
 /*
  * Converts a UTF-8 encoded string to the current locale encoding,
  * if possible, and prints it, with prefix before and suffix after.
@@ -1786,21 +1871,35 @@ get_net_wm_name (xcb_connection_t *dpy, xcb_window_t win)
 static void
 print_utf8 (const char *prefix, char *u8str, size_t length, const char *suffix)
 {
-    char convbuf[BUFSIZ];
-    char *inp = u8str;
     size_t inlen = length;
-    int convres;
 
     if (inlen < 0) {
-	inlen = strlen (inp);
+	inlen = strlen (u8str);
     }
 
+    if (is_valid_utf8 (u8str, inlen) != UTF8_VALID) {
+	printf (" (invalid UTF8_STRING)");
+	return;
+    }
+
+    if (strcmp (user_encoding, "UTF-8") == 0) {
+	/* Don't need to convert */
+	printf ("%s", prefix);
+	fwrite (u8str, 1, inlen, stdout);
+	printf ("%s", suffix);
+	return;
+    }
+
+#ifdef HAVE_ICONV
     if (!iconv_from_utf8) {
 	iconv_from_utf8 = iconv_open (user_encoding, "UTF-8");
     }
 
     if (iconv_from_utf8 != (iconv_t) -1) {
 	Bool done = True;
+	char *inp = u8str;
+	char convbuf[BUFSIZ];
+	int convres;
 
 	printf ("%s", prefix);
 	do {
@@ -1826,6 +1925,9 @@ print_utf8 (const char *prefix, char *u8str, size_t length, const char *suffix)
 	printf (" (can't load iconv conversion for UTF8_STRING to %s)",
 		user_encoding);
     }
+#else
+    printf (" (can't convert UTF8_STRING to %s)", user_encoding);
+#endif
 }
 
 /*

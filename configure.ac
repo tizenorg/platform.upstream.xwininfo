@@ -33,12 +33,18 @@ XORG_MACROS_VERSION(1.3)
 
 AM_CONFIG_HEADER(config.h)
 
+AC_USE_SYSTEM_EXTENSIONS
+
 AC_PROG_CC
 AC_PROG_INSTALL
 
 XORG_DEFAULT_OPTIONS
 
 AC_CHECK_FUNCS([strlcat])
+
+# Check for iconv in libc, then libiconv
+AC_SEARCH_LIBS([iconv], [iconv], [AC_DEFINE([HAVE_ICONV], 1,
+	[Define to 1 if you have the iconv() function])])
 
 # Allow using xcb-icccm, but don't make it the default while the API is
 # still being changed.
