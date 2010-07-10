@@ -22,7 +22,7 @@
 bin_PROGRAMS = xwininfo
 
 AM_CFLAGS = $(CWARNFLAGS) $(XWININFO_CFLAGS)
-xwininfo_LDADD = $(XWININFO_LIBS)
+xwininfo_LDADD = $(XWININFO_LIBS) $(LIBOBJS)
 
 xwininfo_SOURCES =	\
         clientwin.c \
@@ -39,7 +39,7 @@ appmandir = $(APP_MAN_DIR)
 
 appman_DATA = $(appman_PRE:man=@APP_MAN_SUFFIX@)
 
-EXTRA_DIST = $(appman_PRE) autogen.sh
+EXTRA_DIST = $(appman_PRE) autogen.sh strnlen.h
 MAINTAINERCLEANFILES = ChangeLog INSTALL
 CLEANFILES = $(appman_DATA)
 

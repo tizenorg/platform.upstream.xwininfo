@@ -42,6 +42,11 @@ XORG_DEFAULT_OPTIONS
 
 AC_CHECK_FUNCS([strlcat])
 
+AC_FUNC_STRNLEN
+if test "x$ac_cv_func_strnlen_working" = xyes; then
+  AC_DEFINE(HAVE_STRNLEN, 1, [Define to 1 if you have a working strnlen function.])
+fi
+
 # Check for iconv in libc, then libiconv
 AC_SEARCH_LIBS([iconv], [iconv], [AC_DEFINE([HAVE_ICONV], 1,
 	[Define to 1 if you have the iconv() function])])

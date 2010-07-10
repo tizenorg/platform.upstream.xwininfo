@@ -83,6 +83,10 @@ of the copyright holder.
 #include <ctype.h>
 #include <errno.h>
 
+#ifndef HAVE_STRNLEN
+#include "strnlen.h"
+#endif
+
 /* Include routines to handle parsing defaults */
 #include "dsimple.h"
 
