@@ -940,8 +940,8 @@ Display_Stats_Info (struct wininfo *w)
     if (!trans_coords)
 	Fatal_Error ("Can't get translated coordinates.");
 
-    rx = trans_coords->dst_x;
-    ry = trans_coords->dst_y;
+    rx = (int16_t)trans_coords->dst_x;
+    ry = (int16_t)trans_coords->dst_y;
     free (trans_coords);
 
     xright = (dw - rx - w->geometry->border_width * 2 -
