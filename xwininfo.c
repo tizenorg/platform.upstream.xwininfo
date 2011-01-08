@@ -277,7 +277,7 @@ static size_t strlcat (char *dst, const char *src, size_t dstsize)
 /*
  * Report the syntax for calling xwininfo:
  */
-void
+static void
 usage (void)
 {
     fprintf (stderr,
