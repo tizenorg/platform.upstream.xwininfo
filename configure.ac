@@ -71,4 +71,7 @@ PKG_CHECK_MODULES(XWININFO, [xcb >= 1.6] xcb-shape ${xcb_icccm_pc})
 PKG_CHECK_MODULES(XLIB, x11 [xproto >= 7.0.17])
 XWININFO_CFLAGS="${XWININFO_CFLAGS} ${XLIB_CFLAGS}"
 
-AC_OUTPUT([Makefile])
+AC_CONFIG_FILES([
+	Makefile
+	man/Makefile])
+AC_OUTPUT
