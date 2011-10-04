@@ -245,7 +245,7 @@ static void Display_Window_Shape (xcb_window_t);
 static void Display_WM_Info (struct wininfo *);
 static void wininfo_wipe (struct wininfo *);
 
-static const char *window_id_format = "0x%lx";
+static Bool window_id_format_dec = False;
 
 #ifdef HAVE_ICONV
 static iconv_t iconv_from_utf8;
@@ -420,6 +420,19 @@ bscale (int b)
     return (nscale (b, bp, bmm, bbuf, sizeof(bbuf)));
 }
 
+static const char *
+window_id_str (xcb_window_t id)
+{
+    static char str[20];
+
+    if (window_id_format_dec)
+	snprintf (str, sizeof(str), "%u", id);
+    else
+	snprintf (str, sizeof(str), "0x%x", id);
+
+    return str;
+}
+
 /* end of pixel to inch, metric converter */
 
 int
@@ -472,7 +485,7 @@ main (int argc, char **argv)
 	    continue;
 	}
 	if (!strcmp (argv[i], "-int")) {
-	    window_id_format = "%ld";
+	    window_id_format_dec = True;
 	    continue;
 	}
 	if (!strcmp (argv[i], "-children")) {
@@ -576,13 +589,10 @@ main (int argc, char **argv)
 	w->geometry = xcb_get_geometry_reply(dpy, gg_cookie, &err);
 
 	if (!w->geometry) {
-	    char badid[20];
-
 	    if (err)
 		Print_X_Error (dpy, err);
 
-	    snprintf (badid, sizeof(badid), window_id_format, window);
-	    Fatal_Error ("No such window with id %s.", badid);
+	    Fatal_Error ("No such window with id %s.", window_id_str (window));
 	}
     }
 
@@ -794,7 +804,7 @@ Display_Window_Id (struct wininfo *w, Bool newline_wanted)
     unsigned int wm_name_len = 0;
     xcb_atom_t wm_name_encoding = XCB_NONE;
 
-    printf (window_id_format, w->window);      /* print id # in hex/dec */
+    printf ("%s", window_id_str (w->window));
 
     if (!w->window) {
 	printf (" (none)");
