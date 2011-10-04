@@ -1634,6 +1634,18 @@ wm_hints_reply (xcb_connection_t *dpy, xcb_get_property_cookie_t cookie,
 #endif
 
 static void
+Display_Atom_Name (xcb_atom_t atom, const char *prefix)
+{
+    const char *atom_name = Get_Atom_Name (dpy, atom);
+
+    if (atom_name) {
+	print_friendly_name ("          %s\n", atom_name, prefix);
+    } else {
+	printf ("          (unresolvable ATOM 0x%x)\n", atom);
+    }
+}
+
+static void
 Display_WM_Info (struct wininfo *w)
 {
     xcb_icccm_wm_hints_t wmhints;
@@ -1697,17 +1709,8 @@ Display_WM_Info (struct wininfo *w)
 
 	    if (atom_count > 0) {
 		printf ("      Window type:\n");
-		for (i = 0; i < atom_count; i++) {
-		    const char *atom_name = Get_Atom_Name (dpy, atoms[i]);
-
-		    if (atom_name) {
-			print_friendly_name ("          %s\n", atom_name,
-					     "_NET_WM_WINDOW_TYPE_");
-		    } else {
-			printf ("          (unresolvable ATOM 0x%x)\n",
-				atoms[i]);
-		    }
-		}
+		for (i = 0; i < atom_count; i++)
+		    Display_Atom_Name (atoms[i], "_NET_WM_WINDOW_TYPE_");
 	    }
 	}
 	free (prop);
@@ -1721,17 +1724,8 @@ Display_WM_Info (struct wininfo *w)
 
 	    if (atom_count > 0) {
 		printf ("      Window state:\n");
-		for (i = 0; i < atom_count; i++) {
-		    const char *atom_name = Get_Atom_Name (dpy, atoms[i]);
-
-		    if (atom_name) {
-			print_friendly_name ("          %s\n", atom_name,
-					     "_NET_WM_STATE_");
-		    } else {
-			printf ("          (unresolvable ATOM 0x%x)\n",
-				atoms[i]);
-		    }
-		}
+		for (i = 0; i < atom_count; i++)
+		    Display_Atom_Name (atoms[i], "_NET_WM_STATE_");
 	    }
 	}
 	free (prop);
