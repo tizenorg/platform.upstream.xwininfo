@@ -252,7 +252,7 @@ static iconv_t iconv_from_utf8;
 #endif
 static const char *user_encoding;
 static void print_utf8 (const char *, char *, size_t, const char *);
-static void print_friendly_name (const char *, const char *, const char *);
+static char *get_friendly_name (const char *, const char *);
 
 static xcb_connection_t *dpy;
 static xcb_screen_t *screen;
@@ -1639,7 +1639,9 @@ Display_Atom_Name (xcb_atom_t atom, const char *prefix)
     const char *atom_name = Get_Atom_Name (dpy, atom);
 
     if (atom_name) {
-	print_friendly_name ("          %s\n", atom_name, prefix);
+	char *friendly_name = get_friendly_name (atom_name, prefix);
+	printf ("          %s\n", friendly_name);
+	free (friendly_name);
     } else {
 	printf ("          (unresolvable ATOM 0x%x)\n", atom);
     }
@@ -1940,14 +1942,14 @@ print_utf8 (const char *prefix, char *u8str, size_t length, const char *suffix)
 /*
  * Takes a string such as an atom name, strips the prefix, converts
  * underscores to spaces, lowercases all but the first letter of each word,
- * and prints it.
+ * and returns it. The returned string should be freed by the caller.
  */
-static void
-print_friendly_name (const char *format, const char *string,
-		     const char *prefix)
+static char *
+get_friendly_name (const char *string, const char *prefix)
 {
     const char *name_start = string;
     char *lowered_name, *n;
+    Bool first = True;
     int prefix_len = strlen (prefix);
 
     if (strncmp (name_start, prefix, prefix_len) == 0) {
@@ -1955,22 +1957,19 @@ print_friendly_name (const char *format, const char *string,
     }
 
     lowered_name = strdup (name_start);
-    if (lowered_name) {
-	Bool first = True;
+    if (lowered_name == NULL)
+	Fatal_Error ("Failed to allocate memory in get_friendly_name");
 
-	for (n = lowered_name ; *n != 0 ; n++) {
-	    if (*n == '_') {
-		*n = ' ';
-		first = True;
-	    } else if (first) {
-		first = False;
-	    } else {
-		*n = tolower(*n);
-	    }
+    for (n = lowered_name ; *n != 0 ; n++) {
+	if (*n == '_') {
+	    *n = ' ';
+	    first = True;
+	} else if (first) {
+	    first = False;
+	} else {
+	    *n = tolower(*n);
 	}
-	name_start = lowered_name;
     }
 
-    printf (format, name_start);
-    free (lowered_name);
+    return lowered_name;
 }
