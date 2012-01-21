@@ -23,7 +23,7 @@ SUBDIRS = man
 bin_PROGRAMS = xwininfo
 
 AM_CFLAGS = $(CWARNFLAGS) $(XWININFO_CFLAGS)
-xwininfo_LDADD = $(XWININFO_LIBS)
+xwininfo_LDADD = $(XWININFO_LIBS) $(LIBOBJS)
 
 xwininfo_SOURCES =	\
         clientwin.c \
