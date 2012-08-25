@@ -1883,10 +1883,6 @@ print_utf8 (const char *prefix, char *u8str, size_t length, const char *suffix)
 {
     size_t inlen = length;
 
-    if (inlen < 0) {
-	inlen = strlen (u8str);
-    }
-
     if (is_valid_utf8 (u8str, inlen) != UTF8_VALID) {
 	printf (" (invalid UTF8_STRING)");
 	return;
