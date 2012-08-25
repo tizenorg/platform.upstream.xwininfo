@@ -121,6 +121,12 @@ void Setup_Display_And_Screen (
 	/* find our screen */
 	const xcb_setup_t *setup = xcb_get_setup(*dpy);
 	xcb_screen_iterator_t screen_iter = xcb_setup_roots_iterator(setup);
+	int screen_count = xcb_setup_roots_length(setup);
+	if (screen_count <= screen_number)
+	{
+	    Fatal_Error ("unable to access screen %d, max is %d",
+			 screen_number, screen_count-1 );
+	}
 
 	for (i = 0; i < screen_number; i++)
 	    xcb_screen_next(&screen_iter);
