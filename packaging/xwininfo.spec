@@ -1,6 +1,6 @@
 Summary: window information utility for X
 Name: xwininfo
-Version: 1.1.2
+Version: 1.1.3
 Release: 1
 License: MIT
 Group: User Interface/X
@@ -12,6 +12,7 @@ BuildRequires: pkgconfig(xi) pkgconfig(xinerama) pkgconfig(xmu)
 BuildRequires: pkgconfig(xpm) pkgconfig(xt) pkgconfig(xtst) pkgconfig(xv)
 BuildRequires: pkgconfig(xxf86dga) pkgconfig(xxf86vm)
 BuildRequires: pkgconfig(xcb) pkgconfig(xcb-atom)
+BuildRequires: gettext
 
 %description
 A collectty  for  displaying  information about windows.  Various
@@ -23,7 +24,7 @@ which can be used to query the X server for various information.
 %setup -q
 
 %build
-%configure
+%autogen
 make
 
 %install
