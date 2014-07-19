@@ -1,3 +1,5 @@
+%bcond_with x
+
 Summary: window information utility for X
 Name: xwininfo
 Version: 1.1.3
@@ -13,6 +15,10 @@ BuildRequires: pkgconfig(xpm) pkgconfig(xt) pkgconfig(xtst) pkgconfig(xv)
 BuildRequires: pkgconfig(xxf86dga) pkgconfig(xxf86vm)
 BuildRequires: pkgconfig(xcb) pkgconfig(xcb-atom)
 BuildRequires: gettext
+
+%if !%{with x}
+ExclusiveArch:
+%endif
 
 %description
 A collectty  for  displaying  information about windows.  Various
